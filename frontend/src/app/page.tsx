@@ -93,12 +93,12 @@ export default function LandingPage() {
               >
                 Explore Services
               </button>
-              <Link
-                href="/ai"
-                className="inline-flex items-center justify-center border border-white/60 text-white hover:bg-white/10 px-6 py-3 rounded-xl font-bold text-sm transition-all duration-200 active:scale-95"
-              >
-                Learn More
-              </Link>
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center border border-white/60 text-white hover:bg-white/10 px-6 py-3 rounded-xl font-bold text-sm transition-all duration-200 active:scale-95"
+            >
+              Get Started
+            </Link>
             </div>
           </div>
         </section>
@@ -144,7 +144,7 @@ export default function LandingPage() {
             </div>
 
             <Link
-              href="/ai"
+              href="/login/patient"
               className="mt-8 w-full bg-[#007f6e] hover:bg-[#006d5b] text-white text-sm font-semibold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-250 shadow-sm hover:shadow active:scale-[0.98]"
             >
               Enter Patient Portal
@@ -191,15 +191,15 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <button
-              onClick={() => showToast("Access Clinical Workspace: Portal registration is restricted to verified clinical partners.")}
-              className="mt-8 w-full bg-[#007f6e] hover:bg-[#006d5b] text-white text-sm font-semibold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-250 shadow-sm hover:shadow active:scale-[0.98] cursor-pointer"
+            <Link
+              href="/login/doctor"
+              className="mt-8 w-full bg-[#007f6e] hover:bg-[#006d5b] text-white text-sm font-semibold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-250 shadow-sm hover:shadow active:scale-[0.98]"
             >
               Access Clinical Workspace
               <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
-            </button>
+            </Link>
           </div>
 
         </section>

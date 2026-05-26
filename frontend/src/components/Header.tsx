@@ -52,37 +52,13 @@ export default function Header() {
               AI Consult
             </Link>
 
-            {/* Notification Bell */}
-            <button 
-              type="button"
-              className="relative p-2 rounded-full text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-all duration-200 cursor-pointer active:scale-90"
-              aria-label="View notifications"
+            {/* LOGIN Button - Replace notification bell and profile image */}
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center bg-[#007f6e] hover:bg-[#006d5b] text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-all duration-250 shadow-sm hover:shadow active:scale-95"
             >
-              <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border border-white animate-pulse" />
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.8}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"
-                />
-              </svg>
-            </button>
-
-            {/* User Avatar */}
-            <div className="relative group cursor-pointer active:scale-95 transition-transform">
-              <img
-                src="https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=150"
-                alt="Doctor Profile Avatar"
-                className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-sm"
-              />
-              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white" />
-            </div>
+              LOGIN
+            </Link>
           </div>
         </div>
       </div>
