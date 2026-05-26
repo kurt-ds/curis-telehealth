@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   // Allow fetches to the backend container name in server components
   async rewrites() {
     return [
