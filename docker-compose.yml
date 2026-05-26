@@ -1,0 +1,78 @@
+version: "3.9"
+
+services:
+  # ─────────────────────────── DATABASE ────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: curis_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-curis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-curis_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-curisdb}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-curis} -d ${POSTGRES_DB:-curisdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - curis_net
+
+  # ─────────────────────────── BACKEND ─────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: curis_backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 8080
+      DATABASE_URL: postgresql://${POSTGRES_USER:-curis}:${POSTGRES_PASSWORD:-curis_secret}@postgres:5432/${POSTGRES_DB:-curisdb}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-stub}
+      LLM_PROVIDER: gemini
+    ports:
+      - "8080:8080"
+      - "5555:5555"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - curis_net
+
+  # ─────────────────────────── FRONTEND ────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: curis_frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      # Internal URL used by server components (container-to-container)
+      INTERNAL_API_URL: http://backend:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - curis_net
+
+volumes:
+  postgres_data:
+
+networks:
+  curis_net:
+    driver: bridge
