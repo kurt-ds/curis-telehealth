@@ -88,7 +88,7 @@ If symptoms are severe or worsening, seek emergency care immediately.`;
         recommendation,
         doctorsConsulted: doctors.length,
         symptoms: symptoms.trim(),
-        model: isStubKey ? "stub" : "gemini-2.0-flash",
+        model: isStubKey ? "stub" : "gemini-2.5-flash",
       });
     } catch (error) {
       next(error);
