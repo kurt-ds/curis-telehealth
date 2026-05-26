@@ -354,13 +354,13 @@ export default function PatientRegisterPage() {
 
             {/* Accept Terms */}
             <div className="pt-2">
-              <label className="flex items-start gap-3 cursor-pointer">
+              <label className="flex items-center justify-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   name="acceptTerms"
                   checked={formData.acceptTerms}
                   onChange={handleChange}
-                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 mt-1"
+                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                   disabled={isLoading}
                 />
                 <span className="text-xs text-slate-700">
