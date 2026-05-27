@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { useState } from "react";
 
 export default function DoctorRegisterPage() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -80,7 +82,7 @@ export default function DoctorRegisterPage() {
     // 6. Hash password using bcrypt
     // 7. Create doctor user record
     // 8. Create doctor profile with credentials
-    // 9. Set verification status to PENDING (requires manual approval)
+     // 9. Set verification status to PENDING (requires manual approval)
     // 10. Send verification email with license confirmation
     // 11. Notify admin team for credential verification
     // 12. Create initial clinical profile
@@ -91,8 +93,8 @@ export default function DoctorRegisterPage() {
     
     setTimeout(() => {
       setIsLoading(false);
-      alert("Registration functionality coming soon!");
       // In production: send verification email and notify admin for approval
+      router.push('/doctor/dashboard');
     }, 1500);
   };
 

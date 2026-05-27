@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { useState } from "react";
 
 export default function PatientRegisterPage() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -77,8 +79,8 @@ export default function PatientRegisterPage() {
     
     setTimeout(() => {
       setIsLoading(false);
-      alert("Registration functionality coming soon!");
       // In production: send verification email and redirect to email confirmation page
+      router.push('/patient/dashboard');
     }, 1500);
   };
 

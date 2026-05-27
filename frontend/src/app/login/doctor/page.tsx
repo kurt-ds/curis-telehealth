@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { useState } from "react";
 
 export default function DoctorLoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -29,8 +31,8 @@ export default function DoctorLoginPage() {
     // Simulate API call
     setTimeout(() => {
       setIsLoading(false);
-      alert("Login functionality coming soon!");
       // In production: redirect to doctor dashboard on successful login
+      router.push('/doctor/dashboard');
     }, 1500);
   };
 
