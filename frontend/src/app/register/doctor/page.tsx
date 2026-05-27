@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { useState } from "react";
 
+import { setAuthCookies } from "@/hooks/useSession";
+
 const STEPS = [
   { label: "Account", icon: "lock" },
   { label: "Credentials", icon: "badge" },
@@ -108,6 +110,7 @@ export default function DoctorRegisterPage() {
       localStorage.setItem("curis_token", data.token);
       localStorage.setItem("curis_user", JSON.stringify(data.user));
       localStorage.setItem("curis_doctor", JSON.stringify(data.doctor));
+      setAuthCookies(data.token, data.user.role);
 
       router.push("/doctor/dashboard");
     } catch {

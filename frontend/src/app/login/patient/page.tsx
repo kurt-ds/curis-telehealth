@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { useState } from "react";
 
+import { setAuthCookies } from "@/hooks/useSession";
+
 export default function PatientLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -36,10 +38,11 @@ export default function PatientLoginPage() {
         return;
       }
 
-      // Store auth info in localStorage
+      // Store auth info in localStorage and cookies
       localStorage.setItem("curis_token", data.token);
       localStorage.setItem("curis_user", JSON.stringify(data.user));
       localStorage.setItem("curis_patient", JSON.stringify(data.patient));
+      setAuthCookies(data.token, data.user.role);
 
       router.push("/patient/dashboard");
     } catch (err) {

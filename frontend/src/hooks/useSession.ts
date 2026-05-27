@@ -37,6 +37,14 @@ export function useSession(): Session | null {
 
       const user: SessionUser = JSON.parse(rawUser);
 
+      // Auto-sync cookies if they are missing but localStorage has them
+      if (typeof window !== "undefined") {
+        const cookies = document.cookie;
+        if (!cookies.includes("curis_token=") || !cookies.includes("curis_role=")) {
+          setAuthCookies(token, user.role);
+        }
+      }
+
       // Pick the correct profile key based on role
       const profileKey =
         user.role === "PATIENT" ? "curis_patient" : "curis_doctor";
@@ -54,9 +62,23 @@ export function useSession(): Session | null {
   return session;
 }
 
+/** Call this to set cookies for middleware validation. */
+export function setAuthCookies(token: string, role: string) {
+  const maxAge = 7 * 24 * 60 * 60; // 7 days
+  // Ensure we are in a client environment before writing to document.cookie
+  if (typeof window !== "undefined") {
+    document.cookie = `curis_token=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    document.cookie = `curis_role=${role}; path=/; max-age=${maxAge}; SameSite=Lax`;
+  }
+}
+
 /** Call this to clear the session (logout). */
 export function clearSession() {
-  ["curis_token", "curis_user", "curis_patient", "curis_doctor"].forEach(
-    (k) => localStorage.removeItem(k)
-  );
+  if (typeof window !== "undefined") {
+    ["curis_token", "curis_user", "curis_patient", "curis_doctor"].forEach(
+      (k) => localStorage.removeItem(k)
+    );
+    document.cookie = "curis_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    document.cookie = "curis_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  }
 }
