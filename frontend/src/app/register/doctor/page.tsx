@@ -38,6 +38,7 @@ export default function DoctorRegisterPage() {
   const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     // Step 1
     email: "", password: "", confirmPassword: "",
@@ -72,10 +73,48 @@ export default function DoctorRegisterPage() {
   const step2Valid = !!(formData.firstName && formData.lastName && formData.licenseNumber && formData.specialty);
   const step3Valid = true; // all optional in step 3
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setIsLoading(true);
-    // TODO: POST /api/auth/register/doctor
-    setTimeout(() => { setIsLoading(false); router.push("/doctor/dashboard"); }, 1800);
+    setApiError(null);
+    try {
+      const body = new FormData();
+      body.append("email", formData.email);
+      body.append("password", formData.password);
+      body.append("firstName", formData.firstName);
+      body.append("lastName", formData.lastName);
+      body.append("specialty", formData.specialty);
+      if (formData.licenseNumber)    body.append("licenseNumber", formData.licenseNumber);
+      if (formData.institution)      body.append("institution", formData.institution);
+      if (formData.yearsOfExperience) body.append("yearsOfExperience", formData.yearsOfExperience);
+      if (formData.consultationFee)  body.append("consultationFee", formData.consultationFee);
+      if (formData.languages)        body.append("languages", formData.languages);
+      if (formData.phone)            body.append("phone", formData.phone);
+      if (formData.bio)              body.append("bio", formData.bio);
+      if (profilePictureFile)        body.append("avatar", profilePictureFile);
+
+      const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+      const res = await fetch(`${API_URL}/api/auth/register/doctor`, {
+        method: "POST",
+        body,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setApiError(data.error ?? "Registration failed. Please try again.");
+        return;
+      }
+
+      localStorage.setItem("curis_token", data.token);
+      localStorage.setItem("curis_user", JSON.stringify(data.user));
+      localStorage.setItem("curis_doctor", JSON.stringify(data.doctor));
+
+      router.push("/doctor/dashboard");
+    } catch {
+      setApiError("Network error. Please check your connection and try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const inp = "w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200 bg-white text-sm";
@@ -319,6 +358,13 @@ export default function DoctorRegisterPage() {
                   <svg className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   <p className="text-xs text-amber-700">Your medical license will be verified within 1–2 business days. You'll receive an email once your account is approved.</p>
                 </div>
+
+                {apiError && (
+                  <div className="flex items-start gap-2.5 p-3 bg-red-50 border border-red-200 rounded-xl">
+                    <svg className="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <p className="text-xs text-red-700 font-medium">{apiError}</p>
+                  </div>
+                )}
 
                 <label className="flex items-start gap-3 cursor-pointer group">
                   <div

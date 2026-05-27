@@ -74,17 +74,23 @@ model Patient {
 }
 
 model Doctor {
-  id             String   @id @default(cuid())
-  name           String
-  specialization String
-  bio            String?
-  avatarUrl      String?
-  isAvailable    Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  specialization    String
+  bio               String?
+  avatarUrl         String?
+  licenseNumber     String?
+  yearsOfExperience Int?
+  institution       String?
+  consultationFee   Float?
+  languages         String?
+  phone             String?
+  isAvailable       Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@map("doctors")
 }

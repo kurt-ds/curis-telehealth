@@ -162,3 +162,115 @@ authRouter.post("/login/patient", async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Internal server error." });
   }
 });
+
+// ── POST /api/auth/register/doctor ───────────────────────────────────────────
+authRouter.post(
+  "/register/doctor",
+  uploadAvatar.single("avatar"),
+  async (req: Request, res: Response) => {
+    try {
+      const {
+        email, password, firstName, lastName, specialty,
+        licenseNumber, institution, yearsOfExperience,
+        consultationFee, languages, phone, bio,
+      } = req.body as Record<string, string>;
+
+      if (!email || !password || !firstName || !lastName || !specialty) {
+        return res.status(400).json({
+          error: "email, password, firstName, lastName and specialty are required.",
+        });
+      }
+
+      const existing = await prisma.user.findUnique({ where: { email } });
+      if (existing) {
+        return res.status(409).json({ error: "An account with this email already exists." });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 12);
+      const avatarUrl = (req.file as Express.Multer.File & { path?: string })?.path ?? null;
+
+      const { user, doctor } = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: { email, password: hashedPassword, role: "DOCTOR" },
+        });
+        const doctor = await tx.doctor.create({
+          data: {
+            userId: user.id,
+            name: `${firstName} ${lastName}`.trim(),
+            specialization: specialty,
+            licenseNumber: licenseNumber || null,
+            institution: institution || null,
+            yearsOfExperience: yearsOfExperience ? parseInt(yearsOfExperience, 10) : null,
+            consultationFee: consultationFee ? parseFloat(consultationFee) : null,
+            languages: languages || null,
+            phone: phone || null,
+            bio: bio || null,
+            avatarUrl,
+          },
+        });
+        return { user, doctor };
+      });
+
+      const token = signToken(user.id, "DOCTOR");
+
+      return res.status(201).json({
+        message: "Doctor account created successfully. Pending credential verification.",
+        token,
+        user: { id: user.id, email: user.email, role: user.role },
+        doctor: {
+          id: doctor.id,
+          name: doctor.name,
+          specialization: doctor.specialization,
+          avatarUrl: doctor.avatarUrl,
+        },
+      });
+    } catch (err) {
+      console.error("[register/doctor]", err);
+      return res.status(500).json({ error: "Internal server error." });
+    }
+  }
+);
+
+// ── POST /api/auth/login/doctor ───────────────────────────────────────────────
+authRouter.post("/login/doctor", async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body as { email: string; password: string };
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required." });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: { doctorProfile: true },
+    });
+
+    if (!user || user.role !== "DOCTOR") {
+      return res.status(401).json({ error: "Invalid credentials." });
+    }
+
+    const passwordValid = await bcrypt.compare(password, user.password);
+    if (!passwordValid) {
+      return res.status(401).json({ error: "Invalid credentials." });
+    }
+
+    const token = signToken(user.id, "DOCTOR");
+
+    return res.status(200).json({
+      message: "Login successful.",
+      token,
+      user: { id: user.id, email: user.email, role: user.role },
+      doctor: user.doctorProfile
+        ? {
+            id: user.doctorProfile.id,
+            name: user.doctorProfile.name,
+            specialization: user.doctorProfile.specialization,
+            avatarUrl: user.doctorProfile.avatarUrl,
+          }
+        : null,
+    });
+  } catch (err) {
+    console.error("[login/doctor]", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
