@@ -5,461 +5,485 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { useState } from "react";
 
+const STEPS = [
+  { label: "Account" },
+  { label: "Personal" },
+  { label: "Health" },
+  { label: "Confirm" },
+];
+
+function CheckIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  );
+}
+
+function StepBubble({ idx, current }: { idx: number; current: number }) {
+  const done = current > idx + 1;
+  const active = current === idx + 1;
+  const cls = `w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 transition-all duration-300 ${
+    done ? "bg-indigo-600 text-white shadow shadow-indigo-200" :
+    active ? "bg-indigo-600 text-white shadow-md shadow-indigo-200 ring-4 ring-indigo-100" :
+    "bg-slate-100 text-slate-400"
+  }`;
+  return <div className={cls}>{done ? <CheckIcon /> : <span>{idx + 1}</span>}</div>;
+}
+
 export default function PatientRegisterPage() {
   const router = useRouter();
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    dateOfBirth: "",
-    phone: "",
-    acceptTerms: false,
-  });
+  const [step, setStep] = useState(1);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    // Step 1
+    email: "", password: "", confirmPassword: "",
+    // Step 2
+    firstName: "", lastName: "", dateOfBirth: "", gender: "",
+    phone: "", address: "",
+    // Step 3 – Health
+    bloodType: "", height: "", weight: "",
+    allergies: "", medicalHistory: "",
+    emergencyContact: "", emergencyPhone: "",
+    // Step 4
+    acceptTerms: false,
+  });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value
+      [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
     }));
   };
 
-  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // TODO: Backend Implementation
-      // 1. Validate file type (JPEG, PNG, WebP)
-      // 2. Validate file size (max 5MB)
-      // 3. Create FormData and upload to server
-      // 4. Compress image on client-side for optimization
-      // 5. Store image in cloud storage (AWS S3, Google Cloud Storage, etc.)
-      // 6. Generate secure URL with expiration
-      // 7. Associate image URL with patient profile
-      // 8. Delete old profile picture if exists
-      // 9. Log image upload event
-      
-      // Preview image on client
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfilePicture(reader.result as string);
-      };
+      reader.onloadend = () => setProfilePicture(reader.result as string);
       reader.readAsDataURL(file);
       setProfilePictureFile(file);
     }
   };
 
-  const removeProfilePicture = () => {
-    setProfilePicture(null);
-    setProfilePictureFile(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    // TODO: Backend Implementation
-    // 1. Create API endpoint POST /api/auth/register/patient
-    // 2. Validate all input fields (email format, password strength, age requirements)
-    // 3. Check if email already exists in database
-    // 4. Hash password using bcrypt with appropriate salt rounds
-    // 5. Create patient user record with initial profile
-    // 6. Generate unique patient ID
-    // 7. Send verification email with confirmation link
-    // 8. Create patient profile record with initial health data
-    // 9. Set up default preferences and notification settings
-    // 10. Log user registration event
-    // 11. Handle error cases (email exists, weak password, invalid input)
-    // 12. Implement CAPTCHA for spam prevention
-    
-    setTimeout(() => {
-      setIsLoading(false);
-      // In production: send verification email and redirect to email confirmation page
-      router.push('/patient/dashboard');
-    }, 1500);
-  };
-
   const passwordMatch = formData.password === formData.confirmPassword && formData.password.length > 0;
-  const isFormValid = 
-    formData.firstName && 
-    formData.lastName && 
-    formData.email && 
-    formData.password && 
-    passwordMatch && 
-    formData.dateOfBirth &&
-    formData.acceptTerms &&
-    profilePictureFile;
+  const step1Valid = !!(formData.email && formData.password && passwordMatch);
+  const step2Valid = !!(formData.firstName && formData.lastName && formData.dateOfBirth);
+  // step 3 is all optional
+
+  const handleSubmit = async () => {
+    setIsLoading(true);
+    setApiError(null);
+    try {
+      const body = new FormData();
+      // Core fields
+      body.append("email", formData.email);
+      body.append("password", formData.password);
+      body.append("firstName", formData.firstName);
+      body.append("lastName", formData.lastName);
+      // Optional fields — only append if filled
+      if (formData.dateOfBirth) body.append("dateOfBirth", formData.dateOfBirth);
+      if (formData.gender)      body.append("gender", formData.gender);
+      if (formData.phone)       body.append("phone", formData.phone);
+      if (formData.address)     body.append("address", formData.address);
+      if (formData.bloodType)   body.append("bloodType", formData.bloodType);
+      if (formData.height)      body.append("height", formData.height);
+      if (formData.weight)      body.append("weight", formData.weight);
+      if (formData.allergies)   body.append("allergies", formData.allergies);
+      if (formData.medicalHistory) body.append("medicalHistory", formData.medicalHistory);
+      if (formData.emergencyContact) body.append("emergencyContact", formData.emergencyContact);
+      if (formData.emergencyPhone)   body.append("emergencyPhone", formData.emergencyPhone);
+      // Avatar file
+      if (profilePictureFile) body.append("avatar", profilePictureFile);
+
+      const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+      const res = await fetch(`${API_URL}/api/auth/register/patient`, {
+        method: "POST",
+        body, // multipart/form-data — do NOT set Content-Type header manually
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setApiError(data.error ?? "Registration failed. Please try again.");
+        return;
+      }
+
+      // Persist token
+      localStorage.setItem("curis_token", data.token);
+      localStorage.setItem("curis_user", JSON.stringify(data.user));
+      localStorage.setItem("curis_patient", JSON.stringify(data.patient));
+
+      router.push("/patient/dashboard");
+    } catch {
+      setApiError("Network error. Please check your connection and try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const inp = "w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 bg-white text-sm";
+  const lbl = "block text-sm font-semibold text-slate-700 mb-1.5";
+
+  const EyeOn = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
+  const EyeOff = () => <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>;
+  const ChevronR = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>;
+  const ChevronL = () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      {/* Header */}
       <Header />
+      <main className="max-w-lg mx-auto px-4 py-12">
+        <Link href="/register" className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors mb-8 text-sm font-medium">
+          <ChevronL /> Back to Register
+        </Link>
 
-      {/* Main Content */}
-      <main className="max-w-md md:max-w-2xl mx-auto px-4 py-16">
-        
-        {/* Header Section */}
         <div className="mb-8">
-          <Link 
-            href="/register"
-            className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors duration-200 mb-6 text-sm font-semibold"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-            Back
-          </Link>
-
-          <h1 className="text-3xl font-black text-slate-900 mb-2">
-            Patient Registration
-          </h1>
-          <p className="text-slate-600 text-sm">
-            Create an account to access your medical records and book appointments.
-          </p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Patient Registration</h1>
+          <p className="text-slate-500 text-sm mt-1">Create your account to access telehealth services.</p>
         </div>
 
-        {/* Registration Form Card */}
-        <div className="bg-white border border-slate-100/80 rounded-2xl p-8 shadow-sm">
-          
-          {/* Profile Picture Upload Section */}
-          <div className="mb-8 pb-8 border-b border-slate-100">
-            <label className="block text-sm font-semibold text-slate-800 mb-4">
-              Profile Picture <span className="text-red-600">*</span>
-            </label>
-            
-            {/* Upload Area */}
-            {!profilePicture ? (
-              <div>
-                <label className="flex flex-col items-center justify-center w-full px-6 py-8 border-2 border-dashed border-indigo-200 rounded-2xl cursor-pointer hover:bg-indigo-50 transition-all duration-200 group">
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 mb-3 group-hover:scale-110 transition-transform duration-200">
-                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    <span className="text-sm font-semibold text-indigo-600 mb-1">Upload Photo</span>
-                    <span className="text-xs text-slate-500">or drag and drop</span>
-                    <span className="text-xs text-slate-400 mt-2">PNG, JPG, WebP (Max 5MB)</span>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    onChange={handleProfilePictureChange}
-                    className="hidden"
-                    disabled={isLoading}
-                  />
-                </label>
+        {/* Stepper */}
+        <div className="flex items-center mb-8">
+          {STEPS.map((s, i) => (
+            <div key={i} className="flex items-center" style={{ flex: i < STEPS.length - 1 ? 1 : "none" }}>
+              <div className="flex flex-col items-center gap-1">
+                <StepBubble idx={i} current={step} />
+                <span className={`text-[10px] font-bold tracking-wider uppercase ${step === i+1 ? "text-indigo-600" : step > i+1 ? "text-indigo-400" : "text-slate-300"}`}>{s.label}</span>
               </div>
-            ) : (
-              /* Preview Section */
-              <div className="flex flex-col items-center gap-4">
-                <div className="relative">
-                  <img
-                    src={profilePicture}
-                    alt="Profile preview"
-                    className="w-24 h-24 rounded-full object-cover border-4 border-indigo-200 shadow-md"
-                  />
-                  <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
-                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
+              {i < STEPS.length - 1 && (
+                <div className={`flex-1 h-0.5 mx-1 mb-4 rounded-full transition-all duration-500 ${step > i+1 ? "bg-indigo-600" : "bg-slate-200"}`} />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Card */}
+        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="h-1 bg-slate-100">
+            <div className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 transition-all duration-500" style={{ width: `${(step / 4) * 100}%` }} />
+          </div>
+          <div className="p-8">
+
+            {/* ── STEP 1: Account ── */}
+            {step === 1 && (
+              <div className="space-y-5">
+                <div className="mb-2">
+                  <h2 className="text-lg font-black text-slate-800">Account Setup</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Choose your login credentials.</p>
+                </div>
+
+                {/* Photo */}
+                <div>
+                  <label className={lbl}>Profile Photo <span className="text-slate-400 font-normal">(optional)</span></label>
+                  {!profilePicture ? (
+                    <label className="flex flex-col items-center justify-center w-full px-6 py-6 border-2 border-dashed border-indigo-200 rounded-xl cursor-pointer hover:bg-indigo-50/50 transition-all duration-200 group">
+                      <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500 mb-2 group-hover:scale-110 transition-transform duration-200">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                      </div>
+                      <span className="text-sm font-semibold text-indigo-600">Upload Photo</span>
+                      <span className="text-xs text-slate-400 mt-0.5">PNG, JPG, WebP · Max 5MB</span>
+                      <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} className="hidden" />
+                    </label>
+                  ) : (
+                    <div className="flex items-center gap-4 p-3 border border-slate-100 rounded-xl bg-slate-50">
+                      <img src={profilePicture} alt="Preview" className="w-14 h-14 rounded-full object-cover border-2 border-indigo-200" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-700 truncate">{profilePictureFile?.name}</p>
+                        <p className="text-xs text-slate-400">{profilePictureFile && `${(profilePictureFile.size / 1024).toFixed(1)} KB`}</p>
+                      </div>
+                      <button type="button" onClick={() => { setProfilePicture(null); setProfilePictureFile(null); }} className="text-xs text-red-500 hover:text-red-700 font-semibold">Remove</button>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="email" className={lbl}>Email Address <span className="text-red-500">*</span></label>
+                  <input id="email" name="email" type="email" placeholder="you@example.com" value={formData.email} onChange={handleChange} className={inp} />
+                </div>
+
+                <div>
+                  <label htmlFor="password" className={lbl}>Password <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <input id="password" name="password" type={showPassword ? "text" : "password"} placeholder="••••••••" value={formData.password} onChange={handleChange} className={inp} />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-slate-400 hover:text-slate-700">
+                      {showPassword ? <EyeOn /> : <EyeOff />}
+                    </button>
                   </div>
+                  <p className="text-xs text-slate-400 mt-1">Min. 8 chars · uppercase · number · symbol</p>
                 </div>
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-slate-700 mb-2">
-                    {profilePictureFile?.name}
-                  </p>
-                  <p className="text-xs text-slate-500 mb-3">
-                    {profilePictureFile && `${(profilePictureFile.size / 1024).toFixed(1)} KB`}
-                  </p>
+
+                <div>
+                  <label htmlFor="confirmPassword" className={lbl}>Confirm Password <span className="text-red-500">*</span></label>
+                  <input id="confirmPassword" name="confirmPassword" type={showPassword ? "text" : "password"} placeholder="••••••••" value={formData.confirmPassword} onChange={handleChange}
+                    className={`${inp} ${formData.confirmPassword && !passwordMatch ? "border-red-300 focus:ring-red-400" : ""}`} />
+                  {formData.confirmPassword && !passwordMatch && <p className="text-xs text-red-500 mt-1">Passwords do not match</p>}
                 </div>
-                <button
-                  type="button"
-                  onClick={removeProfilePicture}
-                  className="text-sm text-red-600 hover:text-red-700 font-semibold transition-colors duration-200"
-                  disabled={isLoading}
-                >
-                  Remove Photo
-                </button>
               </div>
             )}
-          </div>
-          
-          <form onSubmit={handleSubmit} className="space-y-4">
-            
-            {/* First Name & Last Name */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="firstName" className="block text-sm font-semibold text-slate-800 mb-2">
-                  First Name
-                </label>
-                <input
-                  id="firstName"
-                  name="firstName"
-                  type="text"
-                  placeholder="John"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                  required
-                  disabled={isLoading}
-                />
+
+            {/* ── STEP 2: Personal Info ── */}
+            {step === 2 && (
+              <div className="space-y-5">
+                <div className="mb-2">
+                  <h2 className="text-lg font-black text-slate-800">Personal Information</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Basic details to set up your patient profile.</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="firstName" className={lbl}>First Name <span className="text-red-500">*</span></label>
+                    <input id="firstName" name="firstName" type="text" placeholder="John" value={formData.firstName} onChange={handleChange} className={inp} />
+                  </div>
+                  <div>
+                    <label htmlFor="lastName" className={lbl}>Last Name <span className="text-red-500">*</span></label>
+                    <input id="lastName" name="lastName" type="text" placeholder="Doe" value={formData.lastName} onChange={handleChange} className={inp} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="dateOfBirth" className={lbl}>Date of Birth <span className="text-red-500">*</span></label>
+                    <input id="dateOfBirth" name="dateOfBirth" type="date" value={formData.dateOfBirth} onChange={handleChange} className={inp} />
+                  </div>
+                  <div>
+                    <label htmlFor="gender" className={lbl}>Gender</label>
+                    <select id="gender" name="gender" value={formData.gender} onChange={handleChange} className={inp}>
+                      <option value="">Select</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="non_binary">Non-binary</option>
+                      <option value="prefer_not">Prefer not to say</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="phone" className={lbl}>Phone Number</label>
+                  <input id="phone" name="phone" type="tel" placeholder="+1 (555) 000-0000" value={formData.phone} onChange={handleChange} className={inp} />
+                </div>
+
+                <div>
+                  <label htmlFor="address" className={lbl}>Home Address</label>
+                  <textarea id="address" name="address" placeholder="123 Main St, City, State, ZIP" value={formData.address} onChange={handleChange} rows={2} className={`${inp} resize-none`} />
+                </div>
               </div>
-              <div>
-                <label htmlFor="lastName" className="block text-sm font-semibold text-slate-800 mb-2">
-                  Last Name
-                </label>
-                <input
-                  id="lastName"
-                  name="lastName"
-                  type="text"
-                  placeholder="Doe"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                  required
-                  disabled={isLoading}
-                />
+            )}
+
+            {/* ── STEP 3: Health Profile ── */}
+            {step === 3 && (
+              <div className="space-y-5">
+                <div className="mb-2">
+                  <h2 className="text-lg font-black text-slate-800">Health Profile</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Optional but helps your doctor provide better care. You can update this anytime.</p>
+                </div>
+
+                {/* Vitals */}
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Vitals</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label htmlFor="bloodType" className={lbl}>Blood Type</label>
+                      <select id="bloodType" name="bloodType" value={formData.bloodType} onChange={handleChange} className={inp}>
+                        <option value="">—</option>
+                        {["A+","A-","B+","B-","AB+","AB-","O+","O-"].map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="height" className={lbl}>Height (cm)</label>
+                      <input id="height" name="height" type="number" placeholder="170" min="50" max="300" value={formData.height} onChange={handleChange} className={inp} />
+                    </div>
+                    <div>
+                      <label htmlFor="weight" className={lbl}>Weight (kg)</label>
+                      <input id="weight" name="weight" type="number" placeholder="70" min="1" max="500" value={formData.weight} onChange={handleChange} className={inp} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Allergies */}
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Medical Background</p>
+                  <div className="space-y-4">
+                    <div>
+                      <label htmlFor="allergies" className={lbl}>Known Allergies</label>
+                      <textarea
+                        id="allergies" name="allergies"
+                        placeholder="e.g. Penicillin (severe), Peanuts (moderate), Latex (mild)…"
+                        value={formData.allergies}
+                        onChange={handleChange}
+                        rows={2}
+                        className={`${inp} resize-none`}
+                      />
+                      <p className="text-xs text-slate-400 mt-1">List allergens and severity. Leave blank if none known.</p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="medicalHistory" className={lbl}>Medical History</label>
+                      <textarea
+                        id="medicalHistory" name="medicalHistory"
+                        placeholder="e.g. Type 2 Diabetes (2018), Hypertension, Appendectomy (2015)…"
+                        value={formData.medicalHistory}
+                        onChange={handleChange}
+                        rows={3}
+                        className={`${inp} resize-none`}
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Include past diagnoses, surgeries, or ongoing conditions.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Emergency Contact */}
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Emergency Contact</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="emergencyContact" className={lbl}>Contact Name</label>
+                      <input id="emergencyContact" name="emergencyContact" type="text" placeholder="Jane Doe" value={formData.emergencyContact} onChange={handleChange} className={inp} />
+                    </div>
+                    <div>
+                      <label htmlFor="emergencyPhone" className={lbl}>Contact Phone</label>
+                      <input id="emergencyPhone" name="emergencyPhone" type="tel" placeholder="+1 (555) 000-0000" value={formData.emergencyPhone} onChange={handleChange} className={inp} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
+                  <svg className="w-4 h-4 text-indigo-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <p className="text-xs text-indigo-700">All health data is encrypted and only shared with your treating physicians. You can edit this anytime from your Profile.</p>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Email Field */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-semibold text-slate-800 mb-2">
-                Email Address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@example.com"
-                value={formData.email}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                required
-                disabled={isLoading}
-              />
-            </div>
+            {/* ── STEP 4: Confirm ── */}
+            {step === 4 && (
+              <div className="space-y-5">
+                <div className="mb-2">
+                  <h2 className="text-lg font-black text-slate-800">Review & Confirm</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Verify your details before creating your account.</p>
+                </div>
 
-            {/* Date of Birth */}
-            <div>
-              <label htmlFor="dateOfBirth" className="block text-sm font-semibold text-slate-800 mb-2">
-                Date of Birth
-              </label>
-              <input
-                id="dateOfBirth"
-                name="dateOfBirth"
-                type="date"
-                value={formData.dateOfBirth}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                required
-                disabled={isLoading}
-              />
-            </div>
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-3">
+                  {/* Identity */}
+                  <div className="flex items-center gap-3">
+                    {profilePicture ? (
+                      <img src={profilePicture} alt="Avatar" className="w-12 h-12 rounded-full object-cover border-2 border-indigo-200" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-lg font-black">
+                        {formData.firstName ? formData.firstName[0].toUpperCase() : "?"}
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-bold text-slate-800 text-sm">{formData.firstName} {formData.lastName}</p>
+                      <p className="text-xs text-slate-500">{formData.email}</p>
+                    </div>
+                    <span className="ml-auto text-[10px] font-black tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 uppercase">Patient</span>
+                  </div>
 
-            {/* Phone Field */}
-            <div>
-              <label htmlFor="phone" className="block text-sm font-semibold text-slate-800 mb-2">
-                Phone Number (Optional)
-              </label>
-              <input
-                id="phone"
-                name="phone"
-                type="tel"
-                placeholder="+1 (555) 000-0000"
-                value={formData.phone}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                disabled={isLoading}
-              />
-            </div>
+                  {/* Personal */}
+                  <div className="border-t border-slate-200 pt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                    {[
+                      { label: "Date of Birth", val: formData.dateOfBirth || "—" },
+                      { label: "Gender", val: formData.gender || "—" },
+                      { label: "Phone", val: formData.phone || "—" },
+                      { label: "Blood Type", val: formData.bloodType || "—" },
+                      { label: "Height", val: formData.height ? `${formData.height} cm` : "—" },
+                      { label: "Weight", val: formData.weight ? `${formData.weight} kg` : "—" },
+                    ].map(({ label, val }) => (
+                      <div key={label}>
+                        <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">{label}</p>
+                        <p className="text-slate-700 font-medium mt-0.5">{val}</p>
+                      </div>
+                    ))}
+                  </div>
 
-            {/* Password Field */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-slate-800 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-                  required
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-slate-500 hover:text-slate-700 transition-colors duration-200"
-                  disabled={isLoading}
-                >
-                  {showPassword ? (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803m5.596-3.856a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
+                  {/* Health summary */}
+                  {(formData.allergies || formData.medicalHistory) && (
+                    <div className="border-t border-slate-200 pt-3 space-y-2 text-xs">
+                      {formData.allergies && (
+                        <div>
+                          <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Allergies</p>
+                          <p className="text-slate-700 font-medium mt-0.5 line-clamp-2">{formData.allergies}</p>
+                        </div>
+                      )}
+                      {formData.medicalHistory && (
+                        <div>
+                          <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Medical History</p>
+                          <p className="text-slate-700 font-medium mt-0.5 line-clamp-2">{formData.medicalHistory}</p>
+                        </div>
+                      )}
+                    </div>
                   )}
-                </button>
+
+                  {/* Emergency */}
+                  {formData.emergencyContact && (
+                    <div className="border-t border-slate-200 pt-3 text-xs">
+                      <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Emergency Contact</p>
+                      <p className="text-slate-700 font-medium mt-0.5">{formData.emergencyContact} {formData.emergencyPhone && `· ${formData.emergencyPhone}`}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* API Error */}
+                {apiError && (
+                  <div className="flex items-start gap-2.5 p-3 bg-red-50 border border-red-200 rounded-xl">
+                    <svg className="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <p className="text-xs text-red-700 font-medium">{apiError}</p>
+                  </div>
+                )}
+
+                {/* Terms */}
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div
+                    onClick={() => setFormData(p => ({ ...p, acceptTerms: !p.acceptTerms }))}
+                    className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center shrink-0 transition-all duration-200 cursor-pointer ${formData.acceptTerms ? "bg-indigo-600 border-indigo-600" : "border-slate-300 group-hover:border-indigo-400"}`}
+                  >
+                    {formData.acceptTerms && <CheckIcon />}
+                  </div>
+                  <span className="text-xs text-slate-600 leading-relaxed">
+                    I agree to the{" "}
+                    <button type="button" className="text-indigo-600 hover:text-indigo-700 font-semibold">Terms of Service</button>
+                    {" "}and{" "}
+                    <button type="button" className="text-indigo-600 hover:text-indigo-700 font-semibold">Privacy Policy</button>
+                    . I consent to Curis Telehealth processing my health data.
+                  </span>
+                </label>
               </div>
-              {/* TODO: Backend password strength validation */}
-              {/* Implement password requirements:
-                  1. Minimum 8 characters
-                  2. At least one uppercase letter
-                  3. At least one lowercase letter
-                  4. At least one number
-                  5. At least one special character
-                  6. Not a commonly used password
-              */}
-              <p className="text-xs text-slate-500 mt-1">
-                At least 8 characters with mix of uppercase, lowercase, numbers, and symbols
-              </p>
-            </div>
+            )}
 
-            {/* Confirm Password Field */}
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-semibold text-slate-800 mb-2">
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-transparent transition-all duration-200 ${
-                  formData.confirmPassword && !passwordMatch
-                    ? "border-red-300 focus:ring-2 focus:ring-red-500"
-                    : "border-slate-200 focus:ring-2 focus:ring-indigo-500"
-                }`}
-                required
-                disabled={isLoading}
-              />
-              {formData.confirmPassword && !passwordMatch && (
-                <p className="text-xs text-red-600 mt-1">Passwords do not match</p>
+            {/* Navigation */}
+            <div className={`flex mt-8 gap-3 ${step > 1 ? "justify-between" : "justify-end"}`}>
+              {step > 1 && (
+                <button type="button" onClick={() => setStep(s => s - 1)} disabled={isLoading}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold text-sm transition-all duration-200">
+                  <ChevronL /> Back
+                </button>
+              )}
+              {step < 4 ? (
+                <button type="button" onClick={() => setStep(s => s + 1)}
+                  disabled={(step === 1 && !step1Valid) || (step === 2 && !step2Valid)}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-semibold text-sm transition-all duration-200 active:scale-[0.98] ml-auto">
+                  Continue <ChevronR />
+                </button>
+              ) : (
+                <button type="button" onClick={handleSubmit} disabled={isLoading || !formData.acceptTerms}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold text-sm transition-all duration-200 active:scale-[0.98] ml-auto">
+                  {isLoading && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {isLoading ? "Creating Account..." : "Create Account"}
+                </button>
               )}
             </div>
-
-            {/* Accept Terms */}
-            <div className="pt-2">
-              <label className="flex items-center justify-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  name="acceptTerms"
-                  checked={formData.acceptTerms}
-                  onChange={handleChange}
-                  className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                  disabled={isLoading}
-                />
-                <span className="text-xs text-slate-700">
-                  I agree to the{" "}
-                  <button
-                    type="button"
-                    className="text-indigo-600 hover:text-indigo-700 font-semibold"
-                    disabled={isLoading}
-                  >
-                    Terms of Service
-                  </button>
-                  {" "}and{" "}
-                  <button
-                    type="button"
-                    className="text-indigo-600 hover:text-indigo-700 font-semibold"
-                    disabled={isLoading}
-                  >
-                    Privacy Policy
-                  </button>
-                </span>
-              </label>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading || !isFormValid}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 active:scale-[0.98] mt-6"
-            >
-              {isLoading && (
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              )}
-              {isLoading ? "Creating Account..." : "Create Account"}
-            </button>
-
-          </form>
-
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200"></div>
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="px-2 bg-white text-slate-500">or continue with</span>
-            </div>
           </div>
-
-          {/* Social Register Buttons - TODO: Backend Implementation */}
-          {/* Implement OAuth/SSO registration:
-              1. Google OAuth registration
-              2. Apple ID registration
-              3. Microsoft Account registration
-              4. Store OAuth account linking
-              5. Auto-fill user data from OAuth provider
-              6. Handle existing account with OAuth
-          */}
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              disabled={isLoading}
-              className="flex items-center justify-center gap-2 border border-slate-200 hover:bg-slate-50 py-2.5 rounded-xl text-slate-700 font-semibold text-sm transition-all duration-200 disabled:opacity-50"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-              </svg>
-              <span className="text-xs">Google</span>
-            </button>
-            <button
-              type="button"
-              disabled={isLoading}
-              className="flex items-center justify-center gap-2 border border-slate-200 hover:bg-slate-50 py-2.5 rounded-xl text-slate-700 font-semibold text-sm transition-all duration-200 disabled:opacity-50"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M17.05 13.5c0 2.89-2.15 5.36-4.99 5.36-2.84 0-4.99-2.47-4.99-5.36 0-2.88 2.15-5.36 4.99-5.36 2.84 0 4.99 2.48 4.99 5.36zm-4.99-3.66c-1.82 0-3.3-1.46-3.3-3.27 0-1.81 1.48-3.27 3.3-3.27 1.82 0 3.3 1.46 3.3 3.27 0 1.81-1.48 3.27-3.3 3.27zm8.74-6.68h-4.24V1.08h4.24v2.08zm-4.24 4.44h4.24v14.98h-4.24V7.3zM3.7 8.94c-.16-.34-.24-.72-.24-1.14 0-1.58 1.28-2.86 2.86-2.86 1.58 0 2.86 1.28 2.86 2.86 0 .43-.08.8-.24 1.14-1.01-.81-2.33-1.3-3.78-1.3-1.45 0-2.77.49-3.78 1.3zm0 6.22c-.16-.34-.24-.72-.24-1.14 0-1.58 1.28-2.86 2.86-2.86 1.58 0 2.86 1.28 2.86 2.86 0 .43-.08.8-.24 1.14-1.01-.81-2.33-1.3-3.78-1.3-1.45 0-2.77.49-3.78 1.3z"/>
-              </svg>
-              <span className="text-xs">Apple</span>
-            </button>
-          </div>
-
         </div>
 
-        {/* Sign In Link */}
-        <div className="text-center mt-6">
-          <p className="text-slate-600 text-sm">
-            Already have an account?{" "}
-            <Link
-              href="/login/patient"
-              className="text-indigo-600 hover:text-indigo-700 font-semibold transition-colors duration-200"
-            >
-              Sign in here
-            </Link>
-          </p>
-        </div>
-
+        <p className="text-center text-slate-500 text-sm mt-6">
+          Already have an account?{" "}
+          <Link href="/login/patient" className="text-indigo-600 hover:text-indigo-700 font-semibold">Sign in here</Link>
+        </p>
       </main>
     </div>
   );

@@ -32,10 +32,45 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // A user with DOCTOR role links to a Doctor profile
-  doctorProfile Doctor?
+  patientProfile Patient?
+  doctorProfile  Doctor?
 
   @@map("users")
+}
+
+model Patient {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  firstName        String
+  lastName         String
+  email            String   @unique
+  phone            String?
+  dateOfBirth      DateTime?
+  gender           String?
+  avatarUrl        String?
+
+  // Health vitals
+  bloodType        String?
+  height           Float?
+  weight           Float?
+
+  // Medical background
+  allergies        String?
+  medicalHistory   String?
+
+  // Emergency contact
+  emergencyContact String?
+  emergencyPhone   String?
+
+  // Address
+  address          String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("patients")
 }
 
 model Doctor {
@@ -48,7 +83,6 @@ model Doctor {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  // One-to-one back-reference to User
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 

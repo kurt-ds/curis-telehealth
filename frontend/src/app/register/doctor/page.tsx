@@ -5,542 +5,372 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { useState } from "react";
 
+const STEPS = [
+  { label: "Account", icon: "lock" },
+  { label: "Credentials", icon: "badge" },
+  { label: "Practice", icon: "clinic" },
+  { label: "Confirm", icon: "check" },
+];
+
+function CheckIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  );
+}
+
+function StepBubble({ idx, current }: { idx: number; current: number }) {
+  const done = current > idx + 1;
+  const active = current === idx + 1;
+  const cls = `w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 transition-all duration-300 ${
+    done ? "bg-[#007f6e] text-white shadow shadow-teal-200" :
+    active ? "bg-[#007f6e] text-white shadow-md shadow-teal-200 ring-4 ring-teal-100" :
+    "bg-slate-100 text-slate-400"
+  }`;
+  return <div className={cls}>{done ? <CheckIcon /> : <span>{idx + 1}</span>}</div>;
+}
+
 export default function DoctorRegisterPage() {
   const router = useRouter();
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    licenseNumber: "",
-    specialty: "",
-    medicalSchool: "",
-    yearsOfExperience: "",
-    phone: "",
-    acceptTerms: false,
-  });
+  const [step, setStep] = useState(1);
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
   const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    // Step 1
+    email: "", password: "", confirmPassword: "",
+    // Step 2 – Credentials
+    firstName: "", lastName: "", licenseNumber: "", specialty: "",
+    // Step 3 – Practice Info
+    institution: "", yearsOfExperience: "", phone: "", languages: "", bio: "", consultationFee: "",
+    // Step 4
+    acceptTerms: false,
+  });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    if (type === "checkbox") {
-      setFormData(prev => ({
-        ...prev,
-        [name]: (e.target as HTMLInputElement).checked
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
+    }));
   };
 
-  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // TODO: Backend Implementation
-      // 1. Validate file type (JPEG, PNG, WebP)
-      // 2. Validate file size (max 5MB)
-      // 3. Create FormData and upload to server
-      // 4. Compress image on client-side for optimization
-      // 5. Store image in cloud storage (AWS S3, Google Cloud Storage, etc.)
-      // 6. Generate secure URL with expiration
-      // 7. Associate image URL with doctor profile
-      // 8. Delete old profile picture if exists
-      // 9. Log image upload event
-      
-      // Preview image on client
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfilePicture(reader.result as string);
-      };
+      reader.onloadend = () => setProfilePicture(reader.result as string);
       reader.readAsDataURL(file);
       setProfilePictureFile(file);
     }
   };
 
-  const removeProfilePicture = () => {
-    setProfilePicture(null);
-    setProfilePictureFile(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    // TODO: Backend Implementation
-    // 1. Create API endpoint POST /api/auth/register/doctor
-    // 2. Validate all input fields (email format, password strength)
-    // 3. Verify license number through medical board database
-    // 4. Check if license is active and not expired
-    // 5. Check if email/license already registered
-    // 6. Hash password using bcrypt
-    // 7. Create doctor user record
-    // 8. Create doctor profile with credentials
-     // 9. Set verification status to PENDING (requires manual approval)
-    // 10. Send verification email with license confirmation
-    // 11. Notify admin team for credential verification
-    // 12. Create initial clinical profile
-    // 13. Log doctor registration event
-    // 14. Implement credential verification workflow
-    // 15. Add insurance verification step
-    // 16. Background check integration (optional)
-    
-    setTimeout(() => {
-      setIsLoading(false);
-      // In production: send verification email and notify admin for approval
-      router.push('/doctor/dashboard');
-    }, 1500);
-  };
-
   const passwordMatch = formData.password === formData.confirmPassword && formData.password.length > 0;
-  const isFormValid = 
-    formData.firstName && 
-    formData.lastName && 
-    formData.email && 
-    formData.password && 
-    passwordMatch && 
-    formData.licenseNumber &&
-    formData.specialty &&
-    formData.acceptTerms &&
-    profilePictureFile;
+  const step1Valid = !!(formData.email && formData.password && passwordMatch);
+  const step2Valid = !!(formData.firstName && formData.lastName && formData.licenseNumber && formData.specialty);
+  const step3Valid = true; // all optional in step 3
+
+  const handleSubmit = () => {
+    setIsLoading(true);
+    // TODO: POST /api/auth/register/doctor
+    setTimeout(() => { setIsLoading(false); router.push("/doctor/dashboard"); }, 1800);
+  };
+
+  const inp = "w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200 bg-white text-sm";
+  const lbl = "block text-sm font-semibold text-slate-700 mb-1.5";
+
+  const SPECIALTIES = [
+    "Cardiology","Dermatology","Endocrinology","Gastroenterology","General Practice",
+    "Hematology","Internal Medicine","Nephrology","Neurology","Oncology",
+    "Ophthalmology","Orthopedics","Pediatrics","Psychiatry","Pulmonology",
+    "Radiology","Rheumatology","Surgery","Urology","Other"
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      {/* Header */}
       <Header />
+      <main className="max-w-lg mx-auto px-4 py-12">
+        <Link href="/register" className="inline-flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors mb-8 text-sm font-medium">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+          Back to Register
+        </Link>
 
-      {/* Main Content */}
-      <main className="max-w-md md:max-w-2xl mx-auto px-4 py-16">
-        
-        {/* Header Section */}
         <div className="mb-8">
-          <Link 
-            href="/register"
-            className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors duration-200 mb-6 text-sm font-semibold"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-            Back
-          </Link>
-
-          <h1 className="text-3xl font-black text-slate-900 mb-2">
-            Doctor Registration
-          </h1>
-          <p className="text-slate-600 text-sm">
-            Register your clinical credentials to join our specialist network.
-          </p>
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-teal-50 border border-teal-100 rounded-full mb-3">
+            <svg className="w-3.5 h-3.5 text-[#007f6e]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+            <span className="text-xs font-bold text-[#007f6e] tracking-wide">CLINICAL REGISTRATION</span>
+          </div>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Doctor Registration</h1>
+          <p className="text-slate-500 text-sm mt-1">Join our verified specialist network.</p>
         </div>
 
-        {/* Registration Form Card */}
-        <div className="bg-white border border-slate-100/80 rounded-2xl p-8 shadow-sm">
-          
-          {/* Profile Picture Upload Section */}
-          <div className="mb-8 pb-8 border-b border-slate-100">
-            <label className="block text-sm font-semibold text-slate-800 mb-4">
-              Profile Picture <span className="text-red-600">*</span>
-            </label>
-            
-            {/* Upload Area */}
-            {!profilePicture ? (
-              <div>
-                <label className="flex flex-col items-center justify-center w-full px-6 py-8 border-2 border-dashed border-teal-200 rounded-2xl cursor-pointer hover:bg-teal-50 transition-all duration-200 group">
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="w-12 h-12 rounded-full bg-teal-100 flex items-center justify-center text-[#007f6e] mb-3 group-hover:scale-110 transition-transform duration-200">
-                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    <span className="text-sm font-semibold text-teal-600 mb-1">Upload Photo</span>
-                    <span className="text-xs text-slate-500">or drag and drop</span>
-                    <span className="text-xs text-slate-400 mt-2">PNG, JPG, WebP (Max 5MB)</span>
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    onChange={handleProfilePictureChange}
-                    className="hidden"
-                    disabled={isLoading}
-                  />
-                </label>
+        {/* Stepper */}
+        <div className="flex items-center mb-8">
+          {STEPS.map((s, i) => (
+            <div key={i} className="flex items-center" style={{ flex: i < STEPS.length - 1 ? 1 : "none" }}>
+              <div className="flex flex-col items-center gap-1">
+                <StepBubble idx={i} current={step} />
+                <span className={`text-[10px] font-bold tracking-wider uppercase hidden sm:block ${step === i + 1 ? "text-[#007f6e]" : step > i + 1 ? "text-teal-400" : "text-slate-300"}`}>{s.label}</span>
               </div>
-            ) : (
-              /* Preview Section */
-              <div className="flex flex-col items-center gap-4">
-                <div className="relative">
-                  <img
-                    src={profilePicture}
-                    alt="Profile preview"
-                    className="w-24 h-24 rounded-full object-cover border-4 border-teal-200 shadow-md"
-                  />
-                  <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full border-2 border-white flex items-center justify-center">
-                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
+              {i < STEPS.length - 1 && (
+                <div className={`flex-1 h-0.5 mx-1 mb-4 rounded-full transition-all duration-500 ${step > i + 1 ? "bg-[#007f6e]" : "bg-slate-200"}`} />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Card */}
+        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="h-1 bg-slate-100">
+            <div className="h-full bg-gradient-to-r from-[#007f6e] to-teal-400 transition-all duration-500" style={{ width: `${(step / 4) * 100}%` }} />
+          </div>
+          <div className="p-8">
+
+            {/* STEP 1 – Account */}
+            {step === 1 && (
+              <div className="space-y-5">
+                <div className="mb-2">
+                  <h2 className="text-lg font-black text-slate-800">Account Setup</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Create your secure login credentials.</p>
+                </div>
+
+                <div>
+                  <label className={lbl}>Profile Photo <span className="text-slate-400 font-normal">(optional)</span></label>
+                  {!profilePicture ? (
+                    <label className="flex flex-col items-center justify-center w-full px-6 py-6 border-2 border-dashed border-teal-200 rounded-xl cursor-pointer hover:bg-teal-50/50 transition-all duration-200 group">
+                      <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center text-[#007f6e] mb-2 group-hover:scale-110 transition-transform duration-200">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                      </div>
+                      <span className="text-sm font-semibold text-teal-700">Upload Photo</span>
+                      <span className="text-xs text-slate-400 mt-0.5">PNG, JPG, WebP · Max 5MB</span>
+                      <input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} className="hidden" />
+                    </label>
+                  ) : (
+                    <div className="flex items-center gap-4 p-3 border border-slate-100 rounded-xl bg-slate-50">
+                      <img src={profilePicture} alt="Preview" className="w-14 h-14 rounded-full object-cover border-2 border-teal-200" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-700 truncate">{profilePictureFile?.name}</p>
+                        <p className="text-xs text-slate-400">{profilePictureFile && `${(profilePictureFile.size / 1024).toFixed(1)} KB`}</p>
+                      </div>
+                      <button type="button" onClick={() => { setProfilePicture(null); setProfilePictureFile(null); }} className="text-xs text-red-500 hover:text-red-700 font-semibold">Remove</button>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label htmlFor="email" className={lbl}>Email Address <span className="text-red-500">*</span></label>
+                  <input id="email" name="email" type="email" placeholder="doctor@clinic.com" value={formData.email} onChange={handleChange} className={inp} required />
+                </div>
+
+                <div>
+                  <label htmlFor="password" className={lbl}>Password <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <input id="password" name="password" type={showPassword ? "text" : "password"} placeholder="••••••••" value={formData.password} onChange={handleChange} className={inp} required />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-slate-400 hover:text-slate-700 transition-colors">
+                      {showPassword
+                        ? <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        : <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                      }
+                    </button>
                   </div>
+                  <p className="text-xs text-slate-400 mt-1">Min. 8 chars · uppercase · number · symbol</p>
                 </div>
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-slate-700 mb-2">
-                    {profilePictureFile?.name}
-                  </p>
-                  <p className="text-xs text-slate-500 mb-3">
-                    {profilePictureFile && `${(profilePictureFile.size / 1024).toFixed(1)} KB`}
-                  </p>
+
+                <div>
+                  <label htmlFor="confirmPassword" className={lbl}>Confirm Password <span className="text-red-500">*</span></label>
+                  <input id="confirmPassword" name="confirmPassword" type={showPassword ? "text" : "password"} placeholder="••••••••" value={formData.confirmPassword} onChange={handleChange}
+                    className={`${inp} ${formData.confirmPassword && !passwordMatch ? "border-red-300 focus:ring-red-400" : ""}`} required />
+                  {formData.confirmPassword && !passwordMatch && (
+                    <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={removeProfilePicture}
-                  className="text-sm text-red-600 hover:text-red-700 font-semibold transition-colors duration-200"
-                  disabled={isLoading}
-                >
-                  Remove Photo
-                </button>
               </div>
             )}
-          </div>
-          
-          <form onSubmit={handleSubmit} className="space-y-4">
-            
-            {/* First Name & Last Name */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="firstName" className="block text-sm font-semibold text-slate-800 mb-2">
-                  First Name
-                </label>
-                <input
-                  id="firstName"
-                  name="firstName"
-                  type="text"
-                  placeholder="John"
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
-                  required
-                  disabled={isLoading}
-                />
+
+            {/* STEP 2 – Credentials */}
+            {step === 2 && (
+              <div className="space-y-5">
+                <div className="mb-2">
+                  <h2 className="text-lg font-black text-slate-800">Medical Credentials</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Your license will be verified by our credentialing team.</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="firstName" className={lbl}>First Name <span className="text-red-500">*</span></label>
+                    <input id="firstName" name="firstName" type="text" placeholder="John" value={formData.firstName} onChange={handleChange} className={inp} required />
+                  </div>
+                  <div>
+                    <label htmlFor="lastName" className={lbl}>Last Name <span className="text-red-500">*</span></label>
+                    <input id="lastName" name="lastName" type="text" placeholder="Doe" value={formData.lastName} onChange={handleChange} className={inp} required />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="licenseNumber" className={lbl}>Medical License Number <span className="text-red-500">*</span></label>
+                  <input id="licenseNumber" name="licenseNumber" type="text" placeholder="MD-12345678" value={formData.licenseNumber} onChange={handleChange} className={inp} required />
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <svg className="w-3 h-3 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                    <p className="text-xs text-slate-400">Verified against medical board records</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="specialty" className={lbl}>Medical Specialty <span className="text-red-500">*</span></label>
+                  <select id="specialty" name="specialty" value={formData.specialty} onChange={handleChange} className={inp} required>
+                    <option value="">Select a specialty</option>
+                    {SPECIALTIES.map(s => <option key={s} value={s.toLowerCase().replace(/ /g, "_")}>{s}</option>)}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label htmlFor="lastName" className="block text-sm font-semibold text-slate-800 mb-2">
-                  Last Name
-                </label>
-                <input
-                  id="lastName"
-                  name="lastName"
-                  type="text"
-                  placeholder="Doe"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
-                  required
-                  disabled={isLoading}
-                />
+            )}
+
+            {/* STEP 3 – Practice Info */}
+            {step === 3 && (
+              <div className="space-y-5">
+                <div className="mb-2">
+                  <h2 className="text-lg font-black text-slate-800">Practice Information</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Help patients find and understand your practice.</p>
+                </div>
+
+                <div>
+                  <label htmlFor="institution" className={lbl}>Hospital / Institution</label>
+                  <input id="institution" name="institution" type="text" placeholder="General Hospital" value={formData.institution} onChange={handleChange} className={inp} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="yearsOfExperience" className={lbl}>Years of Experience</label>
+                    <input id="yearsOfExperience" name="yearsOfExperience" type="number" placeholder="10" min="0" max="60" value={formData.yearsOfExperience} onChange={handleChange} className={inp} />
+                  </div>
+                  <div>
+                    <label htmlFor="consultationFee" className={lbl}>Consultation Fee ($)</label>
+                    <input id="consultationFee" name="consultationFee" type="number" placeholder="150" min="0" value={formData.consultationFee} onChange={handleChange} className={inp} />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="phone" className={lbl}>Office Phone</label>
+                  <input id="phone" name="phone" type="tel" placeholder="+1 (555) 000-0000" value={formData.phone} onChange={handleChange} className={inp} />
+                </div>
+
+                <div>
+                  <label htmlFor="languages" className={lbl}>Languages Spoken</label>
+                  <input id="languages" name="languages" type="text" placeholder="English, Spanish" value={formData.languages} onChange={handleChange} className={inp} />
+                </div>
+
+                <div>
+                  <label htmlFor="bio" className={lbl}>Professional Bio</label>
+                  <textarea id="bio" name="bio" placeholder="Brief summary of your expertise, approach, and specializations..." value={formData.bio} onChange={handleChange} rows={3} className={`${inp} resize-none`} />
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Email Field */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-semibold text-slate-800 mb-2">
-                Email Address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="doctor@clinic.com"
-                value={formData.email}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
-                required
-                disabled={isLoading}
-              />
-            </div>
+            {/* STEP 4 – Confirm */}
+            {step === 4 && (
+              <div className="space-y-5">
+                <div className="mb-2">
+                  <h2 className="text-lg font-black text-slate-800">Review & Submit</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Confirm your details and submit for verification.</p>
+                </div>
 
-            {/* License Number */}
-            <div>
-              <label htmlFor="licenseNumber" className="block text-sm font-semibold text-slate-800 mb-2">
-                Medical License Number
-              </label>
-              <input
-                id="licenseNumber"
-                name="licenseNumber"
-                type="text"
-                placeholder="MD-12345678"
-                value={formData.licenseNumber}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
-                required
-                disabled={isLoading}
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                Your license will be verified with medical boards
-              </p>
-            </div>
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center gap-3">
+                    {profilePicture ? (
+                      <img src={profilePicture} alt="Avatar" className="w-12 h-12 rounded-full object-cover border-2 border-teal-200" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-teal-100 flex items-center justify-center text-[#007f6e] text-lg font-black">
+                        {formData.firstName ? formData.firstName[0].toUpperCase() : "D"}
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-bold text-slate-800 text-sm">Dr. {formData.firstName} {formData.lastName}</p>
+                      <p className="text-xs text-slate-500">{formData.email}</p>
+                    </div>
+                    <span className="ml-auto text-[10px] font-black tracking-wider px-2 py-0.5 rounded-full bg-teal-100 text-[#007f6e] uppercase">Doctor</span>
+                  </div>
 
-            {/* Specialty */}
-            <div>
-              <label htmlFor="specialty" className="block text-sm font-semibold text-slate-800 mb-2">
-                Medical Specialty
-              </label>
-              <select
-                id="specialty"
-                name="specialty"
-                value={formData.specialty}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
-                required
-                disabled={isLoading}
-              >
-                <option value="">Select a specialty</option>
-                <option value="cardiology">Cardiology</option>
-                <option value="neurology">Neurology</option>
-                <option value="orthopedics">Orthopedics</option>
-                <option value="pediatrics">Pediatrics</option>
-                <option value="psychiatry">Psychiatry</option>
-                <option value="dermatology">Dermatology</option>
-                <option value="oncology">Oncology</option>
-                <option value="general_practice">General Practice</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
+                  <div className="border-t border-slate-200 pt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                    {[
+                      { label: "License", val: formData.licenseNumber || "—" },
+                      { label: "Specialty", val: formData.specialty || "—" },
+                      { label: "Institution", val: formData.institution || "—" },
+                      { label: "Experience", val: formData.yearsOfExperience ? `${formData.yearsOfExperience} yrs` : "—" },
+                      { label: "Languages", val: formData.languages || "—" },
+                      { label: "Fee", val: formData.consultationFee ? `$${formData.consultationFee}` : "—" },
+                    ].map(({ label, val }) => (
+                      <div key={label}>
+                        <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">{label}</p>
+                        <p className="text-slate-700 font-medium mt-0.5">{val}</p>
+                      </div>
+                    ))}
+                    {formData.bio && (
+                      <div className="col-span-2">
+                        <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Bio</p>
+                        <p className="text-slate-700 font-medium mt-0.5 line-clamp-2">{formData.bio}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-            {/* Medical School */}
-            <div>
-              <label htmlFor="medicalSchool" className="block text-sm font-semibold text-slate-800 mb-2">
-                Medical School (Optional)
-              </label>
-              <input
-                id="medicalSchool"
-                name="medicalSchool"
-                type="text"
-                placeholder="Harvard Medical School"
-                value={formData.medicalSchool}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
-                disabled={isLoading}
-              />
-            </div>
+                <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-2.5">
+                  <svg className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <p className="text-xs text-amber-700">Your medical license will be verified within 1–2 business days. You'll receive an email once your account is approved.</p>
+                </div>
 
-            {/* Years of Experience */}
-            <div>
-              <label htmlFor="yearsOfExperience" className="block text-sm font-semibold text-slate-800 mb-2">
-                Years of Experience
-              </label>
-              <input
-                id="yearsOfExperience"
-                name="yearsOfExperience"
-                type="number"
-                placeholder="10"
-                min="0"
-                max="60"
-                value={formData.yearsOfExperience}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
-                disabled={isLoading}
-              />
-            </div>
+                <label className="flex items-start gap-3 cursor-pointer group">
+                  <div
+                    onClick={() => setFormData(p => ({ ...p, acceptTerms: !p.acceptTerms }))}
+                    className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center shrink-0 transition-all duration-200 cursor-pointer ${formData.acceptTerms ? "bg-[#007f6e] border-[#007f6e]" : "border-slate-300 group-hover:border-teal-400"}`}
+                  >
+                    {formData.acceptTerms && (
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                    )}
+                  </div>
+                  <span className="text-xs text-slate-600 leading-relaxed">
+                    I agree to the{" "}
+                    <button type="button" className="text-[#007f6e] hover:text-[#006d5b] font-semibold">Terms of Service</button>
+                    {" "}and{" "}
+                    <button type="button" className="text-[#007f6e] hover:text-[#006d5b] font-semibold">Privacy Policy</button>
+                    . I certify that all information provided is accurate and my medical credentials are valid.
+                  </span>
+                </label>
+              </div>
+            )}
 
-            {/* Phone Field */}
-            <div>
-              <label htmlFor="phone" className="block text-sm font-semibold text-slate-800 mb-2">
-                Phone Number (Optional)
-              </label>
-              <input
-                id="phone"
-                name="phone"
-                type="tel"
-                placeholder="+1 (555) 000-0000"
-                value={formData.phone}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
-                disabled={isLoading}
-              />
-            </div>
-
-            {/* Password Field */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-slate-800 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
-                  required
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-slate-500 hover:text-slate-700 transition-colors duration-200"
-                  disabled={isLoading}
-                >
-                  {showPassword ? (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803m5.596-3.856a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
+            {/* Navigation */}
+            <div className={`flex mt-8 gap-3 ${step > 1 ? "justify-between" : "justify-end"}`}>
+              {step > 1 && (
+                <button type="button" onClick={() => setStep(s => s - 1)} disabled={isLoading}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold text-sm transition-all duration-200">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                  Back
                 </button>
-              </div>
-              {/* TODO: Backend password strength validation */}
-              {/* Implement password requirements for secure clinical access */}
-              <p className="text-xs text-slate-500 mt-1">
-                At least 8 characters with mix of uppercase, lowercase, numbers, and symbols
-              </p>
-            </div>
-
-            {/* Confirm Password Field */}
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-semibold text-slate-800 mb-2">
-                Confirm Password
-              </label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-transparent transition-all duration-200 ${
-                  formData.confirmPassword && !passwordMatch
-                    ? "border-red-300 focus:ring-2 focus:ring-red-500"
-                    : "border-slate-200 focus:ring-2 focus:ring-teal-500"
-                }`}
-                required
-                disabled={isLoading}
-              />
-              {formData.confirmPassword && !passwordMatch && (
-                <p className="text-xs text-red-600 mt-1">Passwords do not match</p>
+              )}
+              {step < 4 ? (
+                <button type="button" onClick={() => setStep(s => s + 1)}
+                  disabled={(step === 1 && !step1Valid) || (step === 2 && !step2Valid)}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#007f6e] hover:bg-[#006d5b] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-semibold text-sm transition-all duration-200 active:scale-[0.98] ml-auto">
+                  Continue
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                </button>
+              ) : (
+                <button type="button" onClick={handleSubmit} disabled={isLoading || !formData.acceptTerms}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#007f6e] hover:bg-[#006d5b] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold text-sm transition-all duration-200 active:scale-[0.98] ml-auto">
+                  {isLoading && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {isLoading ? "Submitting..." : "Submit for Verification"}
+                </button>
               )}
             </div>
-
-            {/* Accept Terms */}
-            <div className="pt-2">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  name="acceptTerms"
-                  checked={formData.acceptTerms}
-                  onChange={handleChange}
-                  className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 mt-1"
-                  disabled={isLoading}
-                />
-                <span className="text-xs text-slate-700">
-                  I agree to the{" "}
-                  <button
-                    type="button"
-                    className="text-teal-600 hover:text-teal-700 font-semibold"
-                    disabled={isLoading}
-                  >
-                    Terms of Service
-                  </button>
-                  {" "}and{" "}
-                  <button
-                    type="button"
-                    className="text-teal-600 hover:text-teal-700 font-semibold"
-                    disabled={isLoading}
-                  >
-                    Privacy Policy
-                  </button>
-                  . I certify that the information provided is accurate and my credentials are valid.
-                </span>
-              </label>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading || !isFormValid}
-              className="w-full bg-[#007f6e] hover:bg-[#006d5b] disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 active:scale-[0.98] mt-6"
-            >
-              {isLoading && (
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              )}
-              {isLoading ? "Creating Account..." : "Create Account"}
-            </button>
-
-            {/* Note about verification */}
-            <p className="text-xs text-slate-500 text-center mt-4 px-2 py-3 bg-slate-50 rounded-lg">
-              Your medical license will be verified by our team. You'll receive an email confirmation once approved.
-            </p>
-
-          </form>
-
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200"></div>
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="px-2 bg-white text-slate-500">or continue with</span>
-            </div>
           </div>
-
-          {/* Social Register Buttons - TODO: Backend Implementation */}
-          {/* Implement OAuth/SSO registration for doctors:
-              1. Google OAuth with domain verification
-              2. Apple ID registration
-              3. Microsoft SSO (common in healthcare systems)
-              4. Healthcare provider SSO (e.g., Epic, Cerner)
-              5. Store OAuth tokens with secure encryption
-              6. Link OAuth to doctor credentials
-          */}
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              disabled={isLoading}
-              className="flex items-center justify-center gap-2 border border-slate-200 hover:bg-slate-50 py-2.5 rounded-xl text-slate-700 font-semibold text-sm transition-all duration-200 disabled:opacity-50"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-              </svg>
-              <span className="text-xs">Google</span>
-            </button>
-            <button
-              type="button"
-              disabled={isLoading}
-              className="flex items-center justify-center gap-2 border border-slate-200 hover:bg-slate-50 py-2.5 rounded-xl text-slate-700 font-semibold text-sm transition-all duration-200 disabled:opacity-50"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M17.05 13.5c0 2.89-2.15 5.36-4.99 5.36-2.84 0-4.99-2.47-4.99-5.36 0-2.88 2.15-5.36 4.99-5.36 2.84 0 4.99 2.48 4.99 5.36zm-4.99-3.66c-1.82 0-3.3-1.46-3.3-3.27 0-1.81 1.48-3.27 3.3-3.27 1.82 0 3.3 1.46 3.3 3.27 0 1.81-1.48 3.27-3.3 3.27zm8.74-6.68h-4.24V1.08h4.24v2.08zm-4.24 4.44h4.24v14.98h-4.24V7.3zM3.7 8.94c-.16-.34-.24-.72-.24-1.14 0-1.58 1.28-2.86 2.86-2.86 1.58 0 2.86 1.28 2.86 2.86 0 .43-.08.8-.24 1.14-1.01-.81-2.33-1.3-3.78-1.3-1.45 0-2.77.49-3.78 1.3zm0 6.22c-.16-.34-.24-.72-.24-1.14 0-1.58 1.28-2.86 2.86-2.86 1.58 0 2.86 1.28 2.86 2.86 0 .43-.08.8-.24 1.14-1.01-.81-2.33-1.3-3.78-1.3-1.45 0-2.77.49-3.78 1.3z"/>
-              </svg>
-              <span className="text-xs">Apple</span>
-            </button>
-          </div>
-
         </div>
 
-        {/* Sign In Link */}
-        <div className="text-center mt-6">
-          <p className="text-slate-600 text-sm">
-            Already registered?{" "}
-            <Link
-              href="/login/doctor"
-              className="text-teal-600 hover:text-teal-700 font-semibold transition-colors duration-200"
-            >
-              Sign in here
-            </Link>
-          </p>
-        </div>
-
+        <p className="text-center text-slate-500 text-sm mt-6">
+          Already registered?{" "}
+          <Link href="/login/doctor" className="text-[#007f6e] hover:text-[#006d5b] font-semibold">Sign in here</Link>
+        </p>
       </main>
     </div>
   );
