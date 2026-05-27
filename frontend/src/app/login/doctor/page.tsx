@@ -12,28 +12,41 @@ export default function DoctorLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [apiError, setApiError] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // TODO: Backend Implementation
-    // 1. Create API endpoint POST /api/auth/login/doctor
-    // 2. Validate email and password format
-    // 3. Query database for doctor user with verified status
-    // 4. Compare password hash using bcrypt
-    // 5. Verify doctor is licensed and approved
-    // 6. Generate JWT token with doctor-specific claims
-    // 7. Return token and doctor data (license info, specialty, etc.)
-    // 8. Handle error cases (invalid credentials, not a doctor, license expired, account locked)
-    // 9. Implement rate limiting for failed login attempts
-    // 10. Log authentication events with audit trail
-    
-    // Simulate API call
-    setTimeout(() => {
+    setApiError(null);
+
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+      const res = await fetch(`${API_URL}/api/auth/login/doctor`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setApiError(data.error ?? "Invalid email or password.");
+        return;
+      }
+
+      // Store auth info in localStorage
+      localStorage.setItem("curis_token", data.token);
+      localStorage.setItem("curis_user", JSON.stringify(data.user));
+      localStorage.setItem("curis_doctor", JSON.stringify(data.doctor));
+
+      router.push("/doctor/dashboard");
+    } catch (err) {
+      setApiError("Network error. Please check your connection and try again.");
+    } finally {
       setIsLoading(false);
-      // In production: redirect to doctor dashboard on successful login
-      router.push('/doctor/dashboard');
-    }, 1500);
+    }
   };
 
   return (
@@ -68,6 +81,15 @@ export default function DoctorLoginPage() {
         <div className="bg-white border border-slate-100/80 rounded-2xl p-8 shadow-sm">
           
           <form onSubmit={handleSubmit} className="space-y-5">
+            
+            {apiError && (
+              <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-medium animate-fadeIn">
+                <svg className="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{apiError}</span>
+              </div>
+            )}
             
             {/* Email Field */}
             <div>
