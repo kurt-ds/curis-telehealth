@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSession } from '@/hooks/useSession';
 
 interface Appointment {
   id: string;
@@ -12,6 +13,20 @@ interface Appointment {
   time: string;
   status: 'scheduled' | 'completed' | 'cancelled';
   reason?: string;
+}
+
+interface AppointmentResponse {
+  id: string;
+  doctorId: string;
+  patientId: string;
+  scheduledAt: string;
+  status: 'UPCOMING' | 'COMPLETED' | 'CANCELLED';
+  reason: string | null;
+  doctor: {
+    id: string;
+    name: string;
+    specialization: string;
+  };
 }
 
 interface TimeSlot {
@@ -25,49 +40,10 @@ interface RescheduleData {
 }
 
 export default function PatientAppointments() {
-  // Sample appointments data
-  const [appointments, setAppointments] = useState<Appointment[]>([
-    {
-      id: '1',
-      doctorId: '1',
-      doctorName: 'Dr. Sarah Chen',
-      specialty: 'Cardiology',
-      date: '2024-10-28',
-      time: '10:30 AM',
-      status: 'scheduled',
-      reason: 'Regular checkup',
-    },
-    {
-      id: '2',
-      doctorId: '2',
-      doctorName: 'Dr. Marcus Thorne',
-      specialty: 'General Medicine',
-      date: '2024-10-29',
-      time: '2:00 PM',
-      status: 'scheduled',
-      reason: 'Follow-up consultation',
-    },
-    {
-      id: '3',
-      doctorId: '3',
-      doctorName: 'Dr. Elena Rodriguez',
-      specialty: 'Pediatrics',
-      date: '2024-10-25',
-      time: '9:00 AM',
-      status: 'completed',
-      reason: 'Vaccination check',
-    },
-    {
-      id: '4',
-      doctorId: '4',
-      doctorName: 'Dr. James Wilson',
-      specialty: 'Neurology',
-      date: '2024-10-22',
-      time: '3:30 PM',
-      status: 'cancelled',
-      reason: 'Emergency consultation',
-    },
-  ]);
+  const session = useSession();
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [cancelingAppointment, setCancelingAppointment] = useState<string | null>(null);
   const [reschedulingAppointment, setReschedulingAppointment] = useState<string | null>(null);
@@ -79,6 +55,64 @@ export default function PatientAppointments() {
   const [cancelReason, setCancelReason] = useState('');
   const [isRescheduleLoading, setIsRescheduleLoading] = useState(false);
   const [isCancelLoading, setIsCancelLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      if (!session?.token) {
+        setIsLoading(false);
+        setAppointments([]);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+        const response = await fetch(`${apiBaseUrl}/api/appointments/me`, {
+          headers: {
+            Authorization: `Bearer ${session.token}`,
+          },
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to load appointments');
+        }
+
+        const mapped = (data.appointments as AppointmentResponse[]).map((appointment) => {
+          const scheduledDate = new Date(appointment.scheduledAt);
+          return {
+            id: appointment.id,
+            doctorId: appointment.doctorId,
+            doctorName: appointment.doctor.name,
+            specialty: appointment.doctor.specialization,
+            date: scheduledDate.toLocaleDateString('en-CA'),
+            time: scheduledDate.toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+            }),
+            status:
+              appointment.status === 'UPCOMING'
+                ? 'scheduled'
+                : appointment.status === 'COMPLETED'
+                ? 'completed'
+                : 'cancelled',
+            reason: appointment.reason ?? undefined,
+          };
+        });
+
+        setAppointments(mapped);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load appointments';
+        setError(message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAppointments();
+  }, [session?.token]);
 
   // Sample dates for reschedule modal
   const dates = ['Monday, Oct 24', 'Tuesday, Oct 25', 'Wednesday, Oct 26', 'Thursday, Oct 27', 'Friday, Oct 28', 'Saturday, Oct 29', 'Sunday, Oct 30'];
@@ -198,8 +232,12 @@ export default function PatientAppointments() {
     }
   };
 
-  const upcomingAppointments = appointments.filter((apt) => apt.status === 'scheduled');
-  const pastAppointments = appointments.filter((apt) => apt.status !== 'scheduled');
+  const { upcomingAppointments, pastAppointments } = useMemo(() => {
+    return {
+      upcomingAppointments: appointments.filter((apt) => apt.status === 'scheduled'),
+      pastAppointments: appointments.filter((apt) => apt.status !== 'scheduled'),
+    };
+  }, [appointments]);
 
   return (
     <div className="p-4 md:p-8 max-w-7xl">
@@ -213,7 +251,15 @@ export default function PatientAppointments() {
       <div className="mb-8">
         <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-4">Upcoming</h2>
 
-        {upcomingAppointments.length > 0 ? (
+        {isLoading ? (
+          <div className="bg-white border border-slate-100 rounded-2xl p-8 text-center text-slate-500">
+            Loading appointments...
+          </div>
+        ) : error ? (
+          <div className="bg-white border border-red-100 rounded-2xl p-8 text-center text-red-600">
+            {error}
+          </div>
+        ) : upcomingAppointments.length > 0 ? (
           <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden">
             {/* Desktop Table View */}
             <div className="hidden md:block overflow-x-auto">
@@ -326,7 +372,7 @@ export default function PatientAppointments() {
       </div>
 
       {/* Past Appointments Section */}
-      {pastAppointments.length > 0 && (
+      {!isLoading && !error && pastAppointments.length > 0 && (
         <div>
           <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-4">Past Appointments</h2>
 

@@ -20,6 +20,12 @@ enum Role {
   ADMIN
 }
 
+enum AppointmentStatus {
+  UPCOMING
+  COMPLETED
+  CANCELLED
+}
+
 // ─────────────────────────────────────────────
 // Models
 // ─────────────────────────────────────────────
@@ -70,6 +76,8 @@ model Patient {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
+  appointments     Appointment[]
+
   @@map("patients")
 }
 
@@ -92,5 +100,40 @@ model Doctor {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  availability      DoctorAvailability[]
+  appointments      Appointment[]
+
   @@map("doctors")
+}
+
+model DoctorAvailability {
+  doctorId  String
+  doctor    Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  date      DateTime
+  slotsJson Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([doctorId, date])
+  @@map("doctor_availability")
+}
+
+model Appointment {
+  id                String             @id @default(cuid())
+  doctorId          String
+  patientId         String
+  doctor            Doctor             @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient           Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  scheduledAt       DateTime
+  status            AppointmentStatus  @default(UPCOMING)
+  type              String?
+  reason            String?
+  consultationNotes String?
+  roomUrl           String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([doctorId, scheduledAt])
+  @@index([patientId, scheduledAt])
+  @@map("appointments")
 }

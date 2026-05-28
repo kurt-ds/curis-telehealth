@@ -4,6 +4,8 @@ import cors from "cors";
 import { recommendationsRouter } from "./routes/recommendations";
 import { healthRouter } from "./routes/health";
 import { authRouter } from "./routes/auth";
+import { doctorsRouter } from "./routes/doctors";
+import { appointmentsRouter } from "./routes/appointments";
 
 const app = express();
 const PORT = process.env.PORT ?? 8080;
@@ -25,6 +27,8 @@ app.use(express.json());
 app.use("/health", healthRouter);
 app.use("/api/recommendations", recommendationsRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/doctors", doctorsRouter);
+app.use("/api/appointments", appointmentsRouter);
 
 // ── 404 catch-all ─────────────────────────────────────────────────
 app.use((_req, res) => {

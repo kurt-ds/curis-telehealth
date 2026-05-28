@@ -34,6 +34,8 @@ async function main() {
     },
   ];
 
+  const seededDoctorIds: string[] = [];
+
   for (const data of doctorData) {
     const user = await prisma.user.upsert({
       where: { email: data.email },
@@ -53,8 +55,66 @@ async function main() {
         },
       },
     });
+    const doctor = await prisma.doctor.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+    if (doctor?.id) {
+      seededDoctorIds.push(doctor.id);
+    }
     console.log(`  ✅  Doctor upserted: ${data.name} (${user.id})`);
   }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const buildSlots = () => {
+    const slots: { time: string; available: boolean }[] = [];
+
+    const addSlots = (startHour: number, endHour: number) => {
+      for (let hour = startHour; hour < endHour; hour += 1) {
+        const label = `${hour.toString().padStart(2, "0")}:00`;
+        slots.push({ time: label, available: true });
+      }
+    };
+
+    addSlots(8, 12);
+    addSlots(13, 17);
+
+    return slots;
+  };
+
+  const daysToSeed = 7;
+  const availabilityCreates: ReturnType<typeof prisma.doctorAvailability.upsert>[] = [];
+
+  for (const doctorId of seededDoctorIds) {
+    for (let offset = 0; offset < daysToSeed; offset += 1) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + offset);
+
+      availabilityCreates.push(
+        prisma.doctorAvailability.upsert({
+          where: {
+            doctorId_date: {
+              doctorId,
+              date,
+            },
+          },
+          update: {
+            slotsJson: buildSlots(),
+          },
+          create: {
+            doctorId,
+            date,
+            slotsJson: buildSlots(),
+          },
+        })
+      );
+    }
+  }
+
+  await Promise.all(availabilityCreates);
+  console.log("  ✅  Doctor availability seeded for 7 days");
 
   console.log("🎉  Seeding complete!");
 }

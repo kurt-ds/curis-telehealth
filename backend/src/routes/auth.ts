@@ -14,6 +14,15 @@ function signToken(userId: string, role: string) {
   return jwt.sign({ sub: userId, role }, secret, { expiresIn } as jwt.SignOptions);
 }
 
+function validateRequiredFields(
+  fields: Record<string, string | undefined>,
+  requiredKeys: string[]
+) {
+  const missing = requiredKeys.filter((key) => !fields[key]);
+  if (missing.length === 0) return null;
+  return `${missing.join(", ")} ${missing.length > 1 ? "are" : "is"} required.`;
+}
+
 // ── POST /api/auth/register/patient ──────────────────────────────────────────
 // Accepts multipart/form-data so the avatar file can be included.
 authRouter.post(
@@ -40,8 +49,12 @@ authRouter.post(
       } = req.body as Record<string, string>;
 
       // ── Validation ──────────────────────────────────────────────
-      if (!email || !password || !firstName || !lastName) {
-        return res.status(400).json({ error: "email, password, firstName and lastName are required." });
+      const missingError = validateRequiredFields(
+        { email, password, firstName, lastName },
+        ["email", "password", "firstName", "lastName"]
+      );
+      if (missingError) {
+        return res.status(400).json({ error: missingError });
       }
 
       const existing = await prisma.user.findUnique({ where: { email } });
@@ -120,8 +133,12 @@ authRouter.post("/login/patient", async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body as { email: string; password: string };
 
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required." });
+    const missingError = validateRequiredFields(
+      { email, password },
+      ["email", "password"]
+    );
+    if (missingError) {
+      return res.status(400).json({ error: missingError });
     }
 
     const user = await prisma.user.findUnique({
@@ -175,10 +192,12 @@ authRouter.post(
         consultationFee, languages, phone, bio,
       } = req.body as Record<string, string>;
 
-      if (!email || !password || !firstName || !lastName || !specialty) {
-        return res.status(400).json({
-          error: "email, password, firstName, lastName and specialty are required.",
-        });
+      const missingError = validateRequiredFields(
+        { email, password, firstName, lastName, specialty },
+        ["email", "password", "firstName", "lastName", "specialty"]
+      );
+      if (missingError) {
+        return res.status(400).json({ error: missingError });
       }
 
       const existing = await prisma.user.findUnique({ where: { email } });
@@ -236,8 +255,12 @@ authRouter.post("/login/doctor", async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body as { email: string; password: string };
 
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required." });
+    const missingError = validateRequiredFields(
+      { email, password },
+      ["email", "password"]
+    );
+    if (missingError) {
+      return res.status(400).json({ error: missingError });
     }
 
     const user = await prisma.user.findUnique({

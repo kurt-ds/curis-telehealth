@@ -1,14 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 interface Doctor {
   id: string;
   name: string;
   specialty: string;
-  rating: number;
-  reviews: number;
   image: string;
 }
 
@@ -24,41 +22,37 @@ export default function PatientDashboard() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiResult, setAIResult] = useState<AIRecommendation | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [isLoadingDoctors, setIsLoadingDoctors] = useState(true);
+  const [doctorsError, setDoctorsError] = useState<string | null>(null);
 
-  const doctors: Doctor[] = [
-    {
-      id: '1',
-      name: 'Dr. Sarah Chen',
-      specialty: 'Cardiology',
-      rating: 4.9,
-      reviews: 120,
-      image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop&crop=faces',
-    },
-    {
-      id: '2',
-      name: 'Dr. Marcus Thorne',
-      specialty: 'General Medicine',
-      rating: 4.8,
-      reviews: 85,
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&crop=faces',
-    },
-    {
-      id: '3',
-      name: 'Dr. Elena Rodriguez',
-      specialty: 'Pediatrics',
-      rating: 5.0,
-      reviews: 210,
-      image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop&crop=faces',
-    },
-    {
-      id: '4',
-      name: 'Dr. James Wilson',
-      specialty: 'Neurology',
-      rating: 4.7,
-      reviews: 140,
-      image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=400&fit=crop&crop=faces',
-    },
-  ];
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        setIsLoadingDoctors(true);
+        setDoctorsError(null);
+
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/doctors`
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to load doctors');
+        }
+
+        const data = (await response.json()) as { doctors: Doctor[] };
+        setDoctors(Array.isArray(data.doctors) ? data.doctors : []);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load doctors';
+        setDoctorsError(message);
+      } finally {
+        setIsLoadingDoctors(false);
+      }
+    };
+
+    fetchDoctors();
+  }, []);
 
   const handleAnalyze = async () => {
     if (!symptoms.trim()) return;
@@ -217,30 +211,66 @@ export default function PatientDashboard() {
             </div>
 
             {/* Doctors Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {doctors.map((doctor) => (
-                <div key={doctor.id} className="border border-slate-100 rounded-2xl p-4 hover:shadow-md transition-all duration-200">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="w-16 h-16 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-lg"
-                      style={{ background: `hsl(${(doctor.id.charCodeAt(0) * 40) % 360}, 50%, 45%)` }}>
-                      {doctor.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+            {isLoadingDoctors ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="border border-slate-100 rounded-2xl p-4 animate-pulse">
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="w-16 h-16 rounded-full bg-slate-100" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-slate-100 rounded w-3/4" />
+                        <div className="h-3 bg-slate-100 rounded w-1/2" />
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-slate-900">{doctor.name}</h3>
-                      <p className="text-xs font-medium text-cyan-600 bg-cyan-50 inline-block px-2 py-1 rounded-full mt-1">
-                        {doctor.specialty}
-                      </p>
-                    </div>
+                    <div className="h-9 bg-slate-100 rounded-xl" />
                   </div>
+                ))}
+              </div>
+            ) : doctorsError ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {doctorsError}
+              </div>
+            ) : doctors.length === 0 ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                No available doctors found right now.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {doctors.map((doctor) => (
+                  <div key={doctor.id} className="border border-slate-100 rounded-2xl p-4 hover:shadow-md transition-all duration-200">
+                    <div className="flex items-start gap-3 mb-3">
+                      {doctor.image ? (
+                        <img
+                          src={doctor.image}
+                          alt={doctor.name}
+                          className="w-16 h-16 rounded-full object-cover flex-shrink-0"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div
+                          className="w-16 h-16 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-lg"
+                          style={{ background: `hsl(${(doctor.id.charCodeAt(0) * 40) % 360}, 50%, 45%)` }}
+                        >
+                          {doctor.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-slate-900">{doctor.name}</h3>
+                        <p className="text-xs font-medium text-cyan-600 bg-cyan-50 inline-block px-2 py-1 rounded-full mt-1">
+                          {doctor.specialty}
+                        </p>
+                      </div>
+                    </div>
 
-                  <Link href={`/patient/appointments/doctor/${doctor.id}`}>
-                    <button className="w-full px-4 py-2 border border-cyan-600 text-cyan-600 hover:bg-cyan-50 font-semibold rounded-xl transition-all duration-200">
-                      View Slot Schedule
-                    </button>
-                  </Link>
-                </div>
-              ))}
-            </div>
+                    <Link href={`/patient/appointments/doctor/${doctor.id}`}>
+                      <button className="w-full px-4 py-2 border border-cyan-600 text-cyan-600 hover:bg-cyan-50 font-semibold rounded-xl transition-all duration-200">
+                        View Slot Schedule
+                      </button>
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Backend Implementation Comment */}
             {/* 
