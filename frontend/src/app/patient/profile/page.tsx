@@ -5,6 +5,7 @@ import { setSessionProfile, useSession } from '@/hooks/useSession';
 
 /* ─── Types ──────────────────────────────────────────── */
 interface PatientProfile {
+  id: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -32,22 +33,22 @@ interface AvatarUploadResponse {
 
 type Section = 'personal' | 'health' | 'emergency';
 
-/* ─── Mock data ──────────────────────────────────────── */
 const INITIAL: PatientProfile = {
-  firstName: 'John',
-  lastName: 'Doe',
-  email: 'john.doe@email.com',
-  phone: '+63 917 555 1234',
-  dateOfBirth: '1990-03-15',
-  gender: 'Male',
-  bloodType: 'O+',
-  height: '178',
-  weight: '75',
-  address: '123 Rizal Street, Makati City, Metro Manila',
-  emergencyContact: 'Jane Doe (Sister)',
-  emergencyPhone: '+63 917 987 6543',
-  allergies: 'Penicillin, Shellfish',
-  medicalHistory: 'Hypertension (Controlled), Seasonal Allergies, Mild Asthma',
+  id: '',
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  dateOfBirth: '',
+  gender: '',
+  bloodType: '',
+  height: '',
+  weight: '',
+  address: '',
+  emergencyContact: '',
+  emergencyPhone: '',
+  allergies: '',
+  medicalHistory: '',
 };
 
 function calcAge(dob: string) {

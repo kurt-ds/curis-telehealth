@@ -5,6 +5,7 @@ import { setSessionProfile, useSession } from '@/hooks/useSession';
 
 /* ─── Types ──────────────────────────────────────────── */
 interface DoctorProfile {
+  id: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -34,23 +35,22 @@ interface AvatarUploadResponse {
 
 type Section = 'personal' | 'professional' | 'contact';
 
-/* ─── Mock data ──────────────────────────────────────── */
 const INITIAL_PROFILE: DoctorProfile = {
-  firstName: 'Aris',
-  lastName: 'Reyes',
-  email: 'dr.aris.reyes@curis.health',
-  phone: '+63 917 123 4567',
-  dateOfBirth: '1985-03-14',
-  gender: 'Male',
-  specialization: 'Internal Medicine',
-  licenseNumber: 'PRC-MED-2010-04521',
-  yearsOfExperience: '14',
-  institution: 'Philippine General Hospital',
-  biography:
-    'Dr. Aris Reyes is a board-certified internist with 14 years of experience in managing complex chronic conditions. He is committed to patient-centered care through evidence-based medicine and leverages telemedicine to extend quality healthcare access.',
-  consultationFee: '500',
-  languages: 'English, Filipino',
-  address: 'Makati City, Metro Manila, Philippines',
+  id: '',
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  dateOfBirth: '',
+  gender: '',
+  specialization: '',
+  licenseNumber: '',
+  yearsOfExperience: '',
+  institution: '',
+  biography: '',
+  consultationFee: '',
+  languages: '',
+  address: '',
 };
 
 const SPECIALTIES = [
