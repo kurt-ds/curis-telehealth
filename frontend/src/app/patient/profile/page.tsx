@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useSession } from '@/hooks/useSession';
 
 /* ─── Types ──────────────────────────────────────────── */
 interface PatientProfile {
@@ -18,6 +19,11 @@ interface PatientProfile {
   emergencyPhone: string;
   allergies: string;
   medicalHistory: string;
+  avatarUrl?: string | null;
+}
+
+interface PatientProfileResponse {
+  profile: PatientProfile;
 }
 
 type Section = 'personal' | 'health' | 'emergency';
@@ -122,13 +128,54 @@ function Field({
 
 /* ─── Page ───────────────────────────────────────────── */
 export default function PatientProfile() {
+  const session = useSession();
   const [profile, setProfile] = useState<PatientProfile>(INITIAL);
   const [draft, setDraft] = useState<PatientProfile>(INITIAL);
   const [editingSection, setEditingSection] = useState<Section | null>(null);
   const [savingSection, setSavingSection] = useState<Section | null>(null);
   const [savedSection, setSavedSection] = useState<Section | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!session?.token) {
+        setIsLoading(false);
+        setError(null);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+        const response = await fetch(`${apiBaseUrl}/api/patient/profile`, {
+          headers: {
+            Authorization: `Bearer ${session.token}`,
+          },
+        });
+
+        const data = (await response.json()) as PatientProfileResponse;
+        if (!response.ok) {
+          throw new Error((data as { error?: string }).error || 'Failed to load profile');
+        }
+
+        setProfile(data.profile);
+        setDraft(data.profile);
+        setAvatarPreview(data.profile.avatarUrl ?? null);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load profile';
+        setError(message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [session?.token]);
 
   const startEdit = (s: Section) => { setDraft({ ...profile }); setEditingSection(s); setSavedSection(null); };
   const cancelEdit = () => setEditingSection(null);
@@ -156,6 +203,32 @@ export default function PatientProfile() {
   const isEditing = (s: Section) => editingSection === s;
   const isSaving  = (s: Section) => savingSection === s;
   const dp = editingSection ? draft : profile;
+
+  if (isLoading) {
+    return (
+      <div className="p-4 md:p-8 max-w-4xl">
+        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
+          <div className="flex items-center gap-3 text-slate-600 text-sm">
+            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            Loading profile...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 md:p-8 max-w-4xl">
+        <div className="bg-red-50 border border-red-100 rounded-2xl shadow-sm p-6 text-sm text-red-700">
+          {error}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-4xl">
@@ -208,17 +281,6 @@ export default function PatientProfile() {
               </div>
             </div>
 
-            {/* Mini stats */}
-            <div className="hidden lg:flex flex-col gap-3 border-l border-slate-100 pl-6 flex-shrink-0 text-right">
-              <div>
-                <p className="text-2xl font-black text-slate-900">12</p>
-                <p className="text-xs text-slate-400">Consultations</p>
-              </div>
-              <div>
-                <p className="text-2xl font-black text-slate-900">3</p>
-                <p className="text-xs text-slate-400">Conditions</p>
-              </div>
-            </div>
           </div>
 
           {/* Saved toast */}
