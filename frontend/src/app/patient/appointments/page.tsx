@@ -80,27 +80,31 @@ export default function PatientAppointments() {
           throw new Error(data.error || 'Failed to load appointments');
         }
 
-        const mapped = (data.appointments as AppointmentResponse[]).map((appointment) => {
-          const scheduledDate = new Date(appointment.scheduledAt);
-          return {
-            id: appointment.id,
-            doctorId: appointment.doctorId,
-            doctorName: appointment.doctor.name,
-            specialty: appointment.doctor.specialization,
-            date: scheduledDate.toLocaleDateString('en-CA'),
-            time: scheduledDate.toLocaleTimeString('en-US', {
-              hour: 'numeric',
-              minute: '2-digit',
-            }),
-            status:
+        const mapped: Appointment[] = (data.appointments as AppointmentResponse[]).map(
+          (appointment) => {
+            const scheduledDate = new Date(appointment.scheduledAt);
+            const status: Appointment['status'] =
               appointment.status === 'UPCOMING'
                 ? 'scheduled'
                 : appointment.status === 'COMPLETED'
                 ? 'completed'
-                : 'cancelled',
-            reason: appointment.reason ?? undefined,
-          };
-        });
+                : 'cancelled';
+
+            return {
+              id: appointment.id,
+              doctorId: appointment.doctorId,
+              doctorName: appointment.doctor.name,
+              specialty: appointment.doctor.specialization,
+              date: scheduledDate.toLocaleDateString('en-CA'),
+              time: scheduledDate.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+              }),
+              status,
+              reason: appointment.reason ?? undefined,
+            };
+          }
+        );
 
         setAppointments(mapped);
       } catch (err) {
