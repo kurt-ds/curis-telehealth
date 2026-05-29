@@ -13,24 +13,32 @@ async function main() {
       name: "Maria Santos",
       specialization: "General Practitioner",
       bio: "10+ years of experience in family and internal medicine.",
+      avatarUrl:
+        "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&w=400&q=80",
     },
     {
       email: "dr.reyes@curis.health",
       name: "Carlos Reyes",
       specialization: "Cardiologist",
       bio: "Specializes in heart disease prevention and management.",
+      avatarUrl:
+        "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=400&q=80",
     },
     {
       email: "dr.lim@curis.health",
       name: "Angela Lim",
       specialization: "Dermatologist",
       bio: "Expert in skin conditions, cosmetic dermatology, and dermatopathology.",
+      avatarUrl:
+        "https://images.unsplash.com/photo-1582750433449-648ed127bb54?auto=format&fit=crop&w=400&q=80",
     },
     {
       email: "dr.garcia@curis.health",
       name: "Jose Garcia",
       specialization: "Neurologist",
       bio: "Focused on epilepsy, migraines, and neurodegenerative diseases.",
+      avatarUrl:
+        "https://images.unsplash.com/photo-1527613426441-4da17471b66d?auto=format&fit=crop&w=400&q=80",
     },
   ];
 
@@ -39,7 +47,17 @@ async function main() {
   for (const data of doctorData) {
     const user = await prisma.user.upsert({
       where: { email: data.email },
-      update: {},
+      update: {
+        doctorProfile: {
+          update: {
+            name: data.name,
+            specialization: data.specialization,
+            bio: data.bio,
+            avatarUrl: data.avatarUrl,
+            isAvailable: true,
+          },
+        },
+      },
       create: {
         email: data.email,
         // hashed placeholder — in production use bcrypt
@@ -50,6 +68,7 @@ async function main() {
             name: data.name,
             specialization: data.specialization,
             bio: data.bio,
+            avatarUrl: data.avatarUrl,
             isAvailable: true,
           },
         },
