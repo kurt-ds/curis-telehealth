@@ -30,7 +30,7 @@ app.use("/api/recommendations", recommendationsRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/doctors", doctorsRouter);
 app.use("/api/appointments", appointmentsRouter);
-app.use("/api/patient", profileRouter);
+app.use("/api", profileRouter);
 
 // ── 404 catch-all ─────────────────────────────────────────────────
 app.use((_req, res) => {

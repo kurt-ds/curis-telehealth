@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { setSessionProfile, useSession } from '@/hooks/useSession';
 
 /* ─── Types ──────────────────────────────────────────── */
 interface DoctorProfile {
@@ -20,6 +21,15 @@ interface DoctorProfile {
   consultationFee: string;
   languages: string;
   address: string;
+  avatarUrl?: string | null;
+}
+
+interface DoctorProfileResponse {
+  profile: DoctorProfile;
+}
+
+interface AvatarUploadResponse {
+  avatarUrl: string;
 }
 
 type Section = 'personal' | 'professional' | 'contact';
@@ -42,6 +52,13 @@ const INITIAL_PROFILE: DoctorProfile = {
   languages: 'English, Filipino',
   address: 'Makati City, Metro Manila, Philippines',
 };
+
+const SPECIALTIES = [
+  'Cardiology','Dermatology','Endocrinology','Gastroenterology','General Practice',
+  'Hematology','Internal Medicine','Nephrology','Neurology','Oncology',
+  'Ophthalmology','Orthopedics','Pediatrics','Psychiatry','Pulmonology',
+  'Radiology','Rheumatology','Surgery','Urology','Other'
+];
 
 /* ─── Helpers ────────────────────────────────────────── */
 function initials(first: string, last: string) {
@@ -197,13 +214,62 @@ function Field({
 
 /* ─── Page ───────────────────────────────────────────── */
 export default function DoctorProfilePage() {
+  const session = useSession();
   const [profile, setProfile] = useState<DoctorProfile>(INITIAL_PROFILE);
   const [draft, setDraft] = useState<DoctorProfile>(INITIAL_PROFILE);
   const [editingSection, setEditingSection] = useState<Section | null>(null);
   const [savingSection, setSavingSection] = useState<Section | null>(null);
   const [savedSection, setSavedSection] = useState<Section | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isAvatarUploading, setIsAvatarUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!session?.token) {
+        setIsLoading(false);
+        setError(null);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+        const response = await fetch(`${apiBaseUrl}/api/doctor/profile`, {
+          headers: {
+            Authorization: `Bearer ${session.token}`,
+          },
+        });
+
+        const data = (await response.json()) as DoctorProfileResponse;
+        if (!response.ok) {
+          throw new Error((data as { error?: string }).error || 'Failed to load profile');
+        }
+
+        setProfile(data.profile);
+        setDraft(data.profile);
+        setAvatarPreview(data.profile.avatarUrl ?? null);
+        if (session?.user) {
+          setSessionProfile(session.user.role, {
+            id: data.profile.id,
+            name: `Dr. ${data.profile.firstName} ${data.profile.lastName}`.trim(),
+            avatarUrl: data.profile.avatarUrl ?? null,
+          });
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load profile';
+        setError(message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [session?.token]);
 
   /* helpers */
   const startEdit = (section: Section) => {
@@ -218,29 +284,119 @@ export default function DoctorProfilePage() {
     setDraft(prev => ({ ...prev, [name]: value }));
 
   const saveSection = async (section: Section) => {
+    if (!session?.token) return;
     setSavingSection(section);
-    // TODO: replace with real API call – PUT /api/doctor/profile
-    await new Promise(r => setTimeout(r, 900));
-    setProfile({ ...draft });
-    setSavingSection(null);
-    setEditingSection(null);
-    setSavedSection(section);
-    setTimeout(() => setSavedSection(null), 3000);
+
+    try {
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const response = await fetch(`${apiBaseUrl}/api/doctor/profile`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(draft),
+      });
+
+      const data = (await response.json()) as DoctorProfileResponse;
+      if (!response.ok) {
+        throw new Error((data as { error?: string }).error || 'Failed to update profile');
+      }
+
+      setProfile(data.profile);
+      setDraft(data.profile);
+      if (session?.user) {
+        setSessionProfile(session.user.role, {
+          id: data.profile.id,
+          name: `Dr. ${data.profile.firstName} ${data.profile.lastName}`.trim(),
+          avatarUrl: data.profile.avatarUrl ?? null,
+        });
+      }
+      setSavingSection(null);
+      setEditingSection(null);
+      setSavedSection(section);
+      setTimeout(() => setSavedSection(null), 3000);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update profile';
+      setError(message);
+      setSavingSection(null);
+    }
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !session?.token) return;
     const reader = new FileReader();
     reader.onload = ev => setAvatarPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
-    // TODO: upload to /api/doctor/profile/avatar (multipart/form-data)
+
+    try {
+      setIsAvatarUploading(true);
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      const response = await fetch(`${apiBaseUrl}/api/doctor/profile/avatar`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+        },
+        body: formData,
+      });
+
+      const data = (await response.json()) as AvatarUploadResponse;
+      if (!response.ok) {
+        throw new Error((data as { error?: string }).error || 'Failed to upload avatar');
+      }
+
+      setProfile((prev) => ({ ...prev, avatarUrl: data.avatarUrl }));
+      setDraft((prev) => ({ ...prev, avatarUrl: data.avatarUrl }));
+      setAvatarPreview(data.avatarUrl);
+      if (session?.user) {
+        setSessionProfile(session.user.role, {
+          id: profile.id,
+          name: `Dr. ${profile.firstName} ${profile.lastName}`.trim(),
+          avatarUrl: data.avatarUrl,
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to upload avatar';
+      setError(message);
+    } finally {
+      setIsAvatarUploading(false);
+    }
   };
 
   const isEditing = (s: Section) => editingSection === s;
   const isSaving = (s: Section) => savingSection === s;
 
   const displayProfile = editingSection ? draft : profile;
+
+  if (isLoading) {
+    return (
+      <div className="p-4 md:p-8 max-w-4xl">
+        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
+          <div className="flex items-center gap-3 text-slate-600 text-sm">
+            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+            </svg>
+            Loading profile...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 md:p-8 max-w-4xl">
+        <div className="bg-red-50 border border-red-100 rounded-2xl shadow-sm p-6 text-sm text-red-700">
+          {error}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-4xl">
@@ -268,13 +424,21 @@ export default function DoctorProfilePage() {
               </div>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center shadow transition-colors duration-150"
+                disabled={isAvatarUploading}
+                className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white flex items-center justify-center shadow transition-colors duration-150"
                 title="Change photo"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+                {isAvatarUploading ? (
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                )}
               </button>
               <input
                 ref={fileInputRef}
@@ -290,7 +454,11 @@ export default function DoctorProfilePage() {
               <h2 className="text-2xl font-black text-slate-900">
                 Dr. {profile.firstName} {profile.lastName}
               </h2>
-              <p className="text-teal-600 font-semibold text-sm mt-0.5">{profile.specialization}</p>
+              <p className="text-teal-600 font-semibold text-sm mt-0.5">
+                {profile.specialization
+                  ? `${profile.specialization.charAt(0).toUpperCase()}${profile.specialization.slice(1)}`
+                  : '—'}
+              </p>
               <p className="text-slate-400 text-xs mt-1">{profile.institution}</p>
 
               <div className="flex flex-wrap justify-center sm:justify-start gap-2 mt-3">
@@ -309,17 +477,6 @@ export default function DoctorProfilePage() {
               </div>
             </div>
 
-            {/* Stat strip */}
-            <div className="hidden lg:flex flex-col gap-3 border-l border-slate-100 pl-6 flex-shrink-0 text-right">
-              <div>
-                <p className="text-2xl font-black text-slate-900">248</p>
-                <p className="text-xs text-slate-400">Total Patients</p>
-              </div>
-              <div>
-                <p className="text-2xl font-black text-slate-900">4.9</p>
-                <p className="text-xs text-slate-400">Rating</p>
-              </div>
-            </div>
           </div>
 
           {/* Saved toast */}
@@ -389,7 +546,25 @@ export default function DoctorProfilePage() {
           }
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <Field label="Specialization"     value={displayProfile.specialization}    name="specialization"    editing={isEditing('professional')} onChange={handleChange} />
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">Specialization</label>
+              {isEditing('professional') ? (
+                <select
+                  value={draft.specialization}
+                  onChange={e => handleChange('specialization', e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-150"
+                >
+                  <option value="">Select a specialty</option>
+                  {SPECIALTIES.map(s => (
+                    <option key={s} value={s.toLowerCase().replace(/ /g, '_')}>{s}</option>
+                  ))}
+                </select>
+              ) : (
+                <p className={`text-sm text-slate-800 py-1 ${!displayProfile.specialization ? 'text-slate-400 italic' : ''}`}>
+                  {displayProfile.specialization || '—'}
+                </p>
+              )}
+            </div>
             <Field label="PRC License Number" value={displayProfile.licenseNumber}     name="licenseNumber"     editing={isEditing('professional')} onChange={handleChange} />
             <Field label="Years of Experience" value={displayProfile.yearsOfExperience} name="yearsOfExperience" editing={isEditing('professional')} onChange={handleChange} type="number" />
             <Field label="Institution / Hospital" value={displayProfile.institution}   name="institution"       editing={isEditing('professional')} onChange={handleChange} />
