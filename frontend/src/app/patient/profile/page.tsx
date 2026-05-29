@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useSession } from '@/hooks/useSession';
+import { setSessionProfile, useSession } from '@/hooks/useSession';
 
 /* ─── Types ──────────────────────────────────────────── */
 interface PatientProfile {
@@ -24,6 +24,10 @@ interface PatientProfile {
 
 interface PatientProfileResponse {
   profile: PatientProfile;
+}
+
+interface AvatarUploadResponse {
+  avatarUrl: string;
 }
 
 type Section = 'personal' | 'health' | 'emergency';
@@ -137,6 +141,7 @@ export default function PatientProfile() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAvatarUploading, setIsAvatarUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -163,9 +168,17 @@ export default function PatientProfile() {
           throw new Error((data as { error?: string }).error || 'Failed to load profile');
         }
 
-        setProfile(data.profile);
-        setDraft(data.profile);
-        setAvatarPreview(data.profile.avatarUrl ?? null);
+      setProfile(data.profile);
+      setDraft(data.profile);
+      setAvatarPreview(data.profile.avatarUrl ?? null);
+      if (session?.user) {
+        setSessionProfile(session.user.role, {
+          id: data.profile.id,
+          firstName: data.profile.firstName,
+          lastName: data.profile.lastName,
+          avatarUrl: data.profile.avatarUrl ?? null,
+        });
+      }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load profile';
         setError(message);
@@ -182,22 +195,90 @@ export default function PatientProfile() {
   const handleChange = (n: keyof PatientProfile, v: string) => setDraft(prev => ({ ...prev, [n]: v }));
 
   const saveSection = async (s: Section) => {
+    if (!session?.token) return;
     setSavingSection(s);
-    await new Promise(r => setTimeout(r, 900)); // TODO: replace with PUT /api/patient/profile
-    setProfile({ ...draft });
-    setSavingSection(null);
-    setEditingSection(null);
-    setSavedSection(s);
-    setTimeout(() => setSavedSection(null), 3000);
+
+    try {
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const response = await fetch(`${apiBaseUrl}/api/patient/profile`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(draft),
+      });
+
+      const data = (await response.json()) as PatientProfileResponse;
+      if (!response.ok) {
+        throw new Error((data as { error?: string }).error || 'Failed to update profile');
+      }
+
+      setProfile(data.profile);
+      setDraft(data.profile);
+      if (session?.user) {
+        setSessionProfile(session.user.role, {
+          id: data.profile.id,
+          firstName: data.profile.firstName,
+          lastName: data.profile.lastName,
+          avatarUrl: data.profile.avatarUrl ?? null,
+        });
+      }
+      setSavingSection(null);
+      setEditingSection(null);
+      setSavedSection(s);
+      setTimeout(() => setSavedSection(null), 3000);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to update profile';
+      setError(message);
+      setSavingSection(null);
+    }
   };
 
-  const handleAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !session?.token) return;
+
     const reader = new FileReader();
     reader.onload = ev => setAvatarPreview(ev.target?.result as string);
     reader.readAsDataURL(file);
-    // TODO: POST /api/patient/profile/avatar (multipart/form-data)
+
+    try {
+      setIsAvatarUploading(true);
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      const response = await fetch(`${apiBaseUrl}/api/patient/profile/avatar`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+        },
+        body: formData,
+      });
+
+      const data = (await response.json()) as AvatarUploadResponse;
+      if (!response.ok) {
+        throw new Error((data as { error?: string }).error || 'Failed to upload avatar');
+      }
+
+      setProfile((prev) => ({ ...prev, avatarUrl: data.avatarUrl }));
+      setDraft((prev) => ({ ...prev, avatarUrl: data.avatarUrl }));
+      setAvatarPreview(data.avatarUrl);
+      if (session?.user) {
+        setSessionProfile(session.user.role, {
+          id: profile.id,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          avatarUrl: data.avatarUrl,
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to upload avatar';
+      setError(message);
+    } finally {
+      setIsAvatarUploading(false);
+    }
   };
 
   const isEditing = (s: Section) => editingSection === s;
@@ -252,13 +333,21 @@ export default function PatientProfile() {
               </div>
               <button
                 onClick={() => fileRef.current?.click()}
-                className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-cyan-600 hover:bg-cyan-700 text-white flex items-center justify-center shadow transition-colors duration-150"
+                disabled={isAvatarUploading}
+                className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-cyan-600 hover:bg-cyan-700 disabled:bg-cyan-400 text-white flex items-center justify-center shadow transition-colors duration-150"
                 title="Change photo"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
+                {isAvatarUploading ? (
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                )}
               </button>
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatar} />
             </div>

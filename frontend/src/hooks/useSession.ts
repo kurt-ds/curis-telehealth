@@ -26,37 +26,52 @@ export interface Session {
  * Reads auth data from localStorage.
  * Returns null when not logged in or during SSR.
  */
+function readSessionFromStorage(): Session | null {
+  try {
+    const token = localStorage.getItem("curis_token");
+    const rawUser = localStorage.getItem("curis_user");
+    if (!token || !rawUser) return null;
+
+    const user: SessionUser = JSON.parse(rawUser);
+
+    // Auto-sync cookies if they are missing but localStorage has them
+    if (typeof window !== "undefined") {
+      const cookies = document.cookie;
+      if (!cookies.includes("curis_token=") || !cookies.includes("curis_role=")) {
+        setAuthCookies(token, user.role);
+      }
+    }
+
+    // Pick the correct profile key based on role
+    const profileKey =
+      user.role === "PATIENT" ? "curis_patient" : "curis_doctor";
+    const rawProfile = localStorage.getItem(profileKey);
+    const profile: SessionProfile | null = rawProfile
+      ? JSON.parse(rawProfile)
+      : null;
+
+    return { token, user, profile };
+  } catch {
+    return null;
+  }
+}
+
 export function useSession(): Session | null {
   const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
-    try {
-      const token = localStorage.getItem("curis_token");
-      const rawUser = localStorage.getItem("curis_user");
-      if (!token || !rawUser) return;
+    const syncSession = () => {
+      setSession(readSessionFromStorage());
+    };
 
-      const user: SessionUser = JSON.parse(rawUser);
+    syncSession();
+    window.addEventListener("curis_session_update", syncSession as EventListener);
+    window.addEventListener("storage", syncSession);
 
-      // Auto-sync cookies if they are missing but localStorage has them
-      if (typeof window !== "undefined") {
-        const cookies = document.cookie;
-        if (!cookies.includes("curis_token=") || !cookies.includes("curis_role=")) {
-          setAuthCookies(token, user.role);
-        }
-      }
-
-      // Pick the correct profile key based on role
-      const profileKey =
-        user.role === "PATIENT" ? "curis_patient" : "curis_doctor";
-      const rawProfile = localStorage.getItem(profileKey);
-      const profile: SessionProfile | null = rawProfile
-        ? JSON.parse(rawProfile)
-        : null;
-
-      setSession({ token, user, profile });
-    } catch {
-      // Corrupted storage — ignore
-    }
+    return () => {
+      window.removeEventListener("curis_session_update", syncSession as EventListener);
+      window.removeEventListener("storage", syncSession);
+    };
   }, []);
 
   return session;
@@ -80,5 +95,17 @@ export function clearSession() {
     );
     document.cookie = "curis_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     document.cookie = "curis_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    window.dispatchEvent(new Event("curis_session_update"));
   }
+}
+
+export function setSessionProfile(role: SessionUser["role"], profile: SessionProfile | null) {
+  if (typeof window === "undefined") return;
+  const key = role === "PATIENT" ? "curis_patient" : "curis_doctor";
+  if (profile) {
+    localStorage.setItem(key, JSON.stringify(profile));
+  } else {
+    localStorage.removeItem(key);
+  }
+  window.dispatchEvent(new Event("curis_session_update"));
 }
