@@ -650,3 +650,440 @@ profileRouter.put(
     }
   }
 );
+
+profileRouter.get(
+  "/doctor/queue",
+  requireAuth,
+  requireRole("DOCTOR"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const dateParam = req.query.date ? String(req.query.date) : null;
+      const day = dateParam ? new Date(dateParam) : new Date();
+      if (Number.isNaN(day.getTime())) {
+        return res.status(400).json({ error: "date must be valid." });
+      }
+
+      const startOfDay = new Date(day);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(day);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const doctor = await prisma.doctor.findUnique({
+        where: { userId: req.user?.sub ?? "" },
+        select: { id: true },
+      });
+
+      if (!doctor) {
+        return res.status(404).json({ error: "Doctor profile not found." });
+      }
+
+      const appointments = await prisma.appointment.findMany({
+        where: {
+          doctorId: doctor.id,
+          scheduledAt: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
+          status: { in: ["UPCOMING", "COMPLETED"] },
+        },
+        include: {
+          patient: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+        orderBy: { scheduledAt: "asc" },
+      });
+
+      const items = appointments.map((appointment) => ({
+        id: appointment.id,
+        patientName: `${appointment.patient.firstName} ${appointment.patient.lastName}`.trim(),
+        scheduledAt: appointment.scheduledAt.toISOString(),
+        type: appointment.type || "Consultation",
+        status: appointment.status,
+      }));
+
+      return res.json({ items });
+    } catch (err) {
+      console.error("[GET /api/doctor/queue]", err);
+      return res.status(500).json({ error: "Internal server error." });
+    }
+  }
+);
+
+profileRouter.get(
+  "/doctor/appointments",
+  requireAuth,
+  requireRole("DOCTOR"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const doctor = await prisma.doctor.findUnique({
+        where: { userId: req.user?.sub ?? "" },
+        select: { id: true },
+      });
+
+      if (!doctor) {
+        return res.status(404).json({ error: "Doctor profile not found." });
+      }
+
+      const appointments = await prisma.appointment.findMany({
+        where: { doctorId: doctor.id },
+        include: {
+          patient: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+        orderBy: { scheduledAt: "asc" },
+      });
+
+      const items = appointments.map((appointment) => ({
+        id: appointment.id,
+        patientId: appointment.patient.id,
+        patientName: `${appointment.patient.firstName} ${appointment.patient.lastName}`.trim(),
+        scheduledAt: appointment.scheduledAt.toISOString(),
+        status: appointment.status,
+        notes: appointment.consultationNotes || appointment.reason || null,
+        roomUrl: appointment.roomUrl,
+      }));
+
+      return res.json({ appointments: items });
+    } catch (err) {
+      console.error("[GET /api/doctor/appointments]", err);
+      return res.status(500).json({ error: "Internal server error." });
+    }
+  }
+);
+
+profileRouter.get(
+  "/doctor/appointments/:id",
+  requireAuth,
+  requireRole("DOCTOR"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const doctor = await prisma.doctor.findUnique({
+        where: { userId: req.user?.sub ?? "" },
+        select: { id: true },
+      });
+
+      if (!doctor) {
+        return res.status(404).json({ error: "Doctor profile not found." });
+      }
+
+      const appointment = await prisma.appointment.findUnique({
+        where: { id: req.params.id },
+        include: {
+          patient: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+              dateOfBirth: true,
+              gender: true,
+              bloodType: true,
+              height: true,
+              weight: true,
+              allergies: true,
+              medicalHistory: true,
+              emergencyContact: true,
+              emergencyPhone: true,
+            },
+          },
+        },
+      });
+
+      if (!appointment || appointment.doctorId !== doctor.id) {
+        return res.status(404).json({ error: "Appointment not found." });
+      }
+
+      const patient = appointment.patient;
+      const age = patient.dateOfBirth
+        ? Math.floor((Date.now() - patient.dateOfBirth.getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+        : null;
+
+      return res.json({
+        appointment: {
+          id: appointment.id,
+          scheduledAt: appointment.scheduledAt,
+          status: appointment.status,
+          reason: appointment.reason,
+          diagnosis: appointment.diagnosis,
+          consultationNotes: appointment.consultationNotes,
+          roomUrl: appointment.roomUrl,
+        },
+        patient: {
+          id: patient.id,
+          name: `${patient.firstName} ${patient.lastName}`.trim(),
+          email: patient.email,
+          phone: patient.phone,
+          age,
+          gender: patient.gender,
+          bloodType: patient.bloodType,
+          height: patient.height,
+          weight: patient.weight,
+          allergies: patient.allergies ? patient.allergies.split(",").map((a: string) => a.trim()) : [],
+          medicalHistory: patient.medicalHistory,
+          emergencyContact: patient.emergencyContact,
+          emergencyPhone: patient.emergencyPhone,
+        },
+      });
+    } catch (err) {
+      console.error("[GET /api/doctor/appointments/:id]", err);
+      return res.status(500).json({ error: "Internal server error." });
+    }
+  }
+);
+
+profileRouter.patch(
+  "/doctor/appointments/:id/status",
+  requireAuth,
+  requireRole("DOCTOR"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const doctor = await prisma.doctor.findUnique({
+        where: { userId: req.user?.sub ?? "" },
+        select: { id: true },
+      });
+
+      if (!doctor) {
+        return res.status(404).json({ error: "Doctor profile not found." });
+      }
+
+      const appointment = await prisma.appointment.findUnique({
+        where: { id: req.params.id },
+        select: {
+          id: true,
+          doctorId: true,
+          scheduledAt: true,
+          status: true,
+        },
+      });
+
+      if (!appointment || appointment.doctorId !== doctor.id) {
+        return res.status(404).json({ error: "Appointment not found." });
+      }
+
+      if (appointment.status !== "UPCOMING") {
+        return res.status(400).json({ error: "Only upcoming appointments can be completed." });
+      }
+
+      const now = Date.now();
+      const scheduledAt = appointment.scheduledAt.getTime();
+      const windowStart = scheduledAt - 30 * 60 * 1000;
+      const windowEnd = scheduledAt + 60 * 60 * 1000;
+
+      if (now < windowStart || now > windowEnd) {
+        return res.status(400).json({
+          error: "Appointment can only be completed during the session window (30 min before to 60 min after the scheduled time).",
+        });
+      }
+
+      const { consultationNotes, diagnosis, prescriptions } = req.body as {
+        consultationNotes?: string;
+        diagnosis?: string;
+        prescriptions?: { medication: string; frequency: string; duration: string }[];
+      };
+
+      if (!consultationNotes || !consultationNotes.trim()) {
+        return res.status(400).json({ error: "Consultation notes are required." });
+      }
+
+      if (!diagnosis || !diagnosis.trim()) {
+        return res.status(400).json({ error: "Diagnosis is required." });
+      }
+
+      if (!prescriptions || prescriptions.length === 0) {
+        return res.status(400).json({ error: "At least one prescription is required." });
+      }
+
+      for (const rx of prescriptions) {
+        if (!rx.medication || !rx.medication.trim()) {
+          return res.status(400).json({ error: "Each prescription must have a medication name." });
+        }
+        if (!rx.frequency || !rx.frequency.trim()) {
+          return res.status(400).json({ error: "Each prescription must have a frequency." });
+        }
+        if (!rx.duration || !rx.duration.trim()) {
+          return res.status(400).json({ error: "Each prescription must have a duration." });
+        }
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.appointment.update({
+          where: { id: appointment.id },
+          data: {
+            status: "COMPLETED",
+            consultationNotes: consultationNotes.trim(),
+            diagnosis: diagnosis.trim(),
+          },
+        });
+
+        for (const rx of prescriptions) {
+          await tx.prescription.create({
+            data: {
+              appointmentId: appointment.id,
+              medication: rx.medication.trim(),
+              frequency: rx.frequency.trim(),
+              duration: rx.duration.trim(),
+            },
+          });
+        }
+      });
+
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("[PATCH /api/doctor/appointments/:id/status]", err);
+      return res.status(500).json({ error: "Internal server error." });
+    }
+  }
+);
+
+/* ─── Doctor Patients List ────────────────────────────────────── */
+profileRouter.get(
+  "/doctor/patients",
+  requireAuth,
+  requireRole("DOCTOR"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const doctor = await prisma.doctor.findUnique({
+        where: { userId: req.user?.sub ?? "" },
+        select: { id: true },
+      });
+      if (!doctor) {
+        return res.status(404).json({ error: "Doctor profile not found." });
+      }
+
+      const search = (req.query.search as string || "").trim();
+
+      const patients = await prisma.patient.findMany({
+        where: {
+          appointments: {
+            some: {
+              doctorId: doctor.id,
+              status: "COMPLETED",
+            },
+          },
+          ...(search
+            ? {
+                OR: [
+                  { firstName: { contains: search, mode: "insensitive" } },
+                  { lastName: { contains: search, mode: "insensitive" } },
+                  { id: { contains: search, mode: "insensitive" } },
+                ],
+              }
+            : {}),
+        },
+        include: {
+          appointments: {
+            where: { doctorId: doctor.id, status: "COMPLETED" },
+            orderBy: { scheduledAt: "desc" },
+            select: { scheduledAt: true },
+          },
+        },
+      });
+
+      const items = patients.map((p) => {
+        const name = `${p.firstName} ${p.lastName}`.trim();
+        const conditions = p.medicalHistory
+          ? p.medicalHistory.split(",").map((c) => c.trim()).filter(Boolean)
+          : [];
+        const allergies = p.allergies
+          ? p.allergies.split(",").map((a) => a.trim()).filter(Boolean)
+          : [];
+        const lastVisit =
+          p.appointments.length > 0 ? p.appointments[0].scheduledAt : null;
+        const age = p.dateOfBirth
+          ? Math.floor(
+              (Date.now() - p.dateOfBirth.getTime()) /
+                (365.25 * 24 * 60 * 60 * 1000),
+            )
+          : null;
+
+        return {
+          id: p.id,
+          name,
+          patientId: p.id,
+          age,
+          gender: p.gender || "",
+          bloodType: p.bloodType || "",
+          weight: p.weight ? `${p.weight} kg` : null,
+          height: p.height ? `${p.height} cm` : null,
+          allergies,
+          conditions,
+          lastVisit: lastVisit ? lastVisit.toISOString() : null,
+          totalVisits: p.appointments.length,
+        };
+      });
+
+      return res.json({ items, total: items.length });
+    } catch (err) {
+      console.error("[GET /api/doctor/patients]", err);
+      return res.status(500).json({ error: "Internal server error." });
+    }
+  },
+);
+
+/* ─── Patient Consultation Records ────────────────────────────── */
+profileRouter.get(
+  "/doctor/patients/:patientId/consultations",
+  requireAuth,
+  requireRole("DOCTOR"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const doctor = await prisma.doctor.findUnique({
+        where: { userId: req.user?.sub ?? "" },
+        select: { id: true },
+      });
+      if (!doctor) {
+        return res.status(404).json({ error: "Doctor profile not found." });
+      }
+
+      const patient = await prisma.patient.findUnique({
+        where: { id: req.params.patientId },
+      });
+      if (!patient) {
+        return res.status(404).json({ error: "Patient not found." });
+      }
+
+      const appointments = await prisma.appointment.findMany({
+        where: {
+          patientId: patient.id,
+          doctorId: doctor.id,
+          status: "COMPLETED",
+        },
+        include: {
+          doctor: { select: { name: true } },
+          prescriptions: {
+            select: { medication: true, frequency: true, duration: true },
+          },
+        },
+        orderBy: { scheduledAt: "desc" },
+      });
+
+      const items = appointments.map((a) => ({
+        id: a.id,
+        date: a.scheduledAt.toISOString(),
+        type: a.type || "Consultation",
+        diagnosis: a.reason || "General consultation",
+        notes: a.consultationNotes || "",
+        prescriptions: a.prescriptions.map(
+          (rx) => `${rx.medication} ${rx.frequency}, ${rx.duration}`,
+        ),
+        doctor: `Dr. ${a.doctor.name}`,
+      }));
+
+      return res.json({ items, total: items.length });
+    } catch (err) {
+      console.error("[GET /api/doctor/patients/:patientId/consultations]", err);
+      return res.status(500).json({ error: "Internal server error." });
+    }
+  },
+);

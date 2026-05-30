@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSession } from '@/hooks/useSession';
 import { useToast } from '@/components/ToastProvider';
 
@@ -344,6 +345,10 @@ export default function DoctorDashboard() {
     fetchQueue();
   }, [session?.token]);
 
+  const nextSessionId = queue.find(
+    (item) => item.status === 'WAITING' || item.status === 'ONGOING' || item.status === 'SCHEDULED'
+  )?.id;
+
   return (
     <div className="p-4 md:p-8 max-w-7xl">
       {/* ── Hero header ─────────────────────────────── */}
@@ -579,13 +584,22 @@ export default function DoctorDashboard() {
           )}
 
           {/* CTA */}
-          <button className="mt-2 w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white py-3.5 rounded-xl text-sm font-bold transition-all duration-200 shadow-sm hover:shadow-md">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <path strokeLinecap="round" d="M8 12h8M12 8v8" />
-            </svg>
-            Start Next Session
-          </button>
+          {nextSessionId ? (
+            <Link
+              href={`/doctor/appointments/${nextSessionId}`}
+              className="mt-2 w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white py-3.5 rounded-xl text-sm font-bold transition-all duration-200 shadow-sm hover:shadow-md"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path strokeLinecap="round" d="M8 12h8M12 8v8" />
+              </svg>
+              Start Next Session
+            </Link>
+          ) : (
+            <div className="mt-2 w-full text-center text-xs text-slate-400 py-3">
+              No upcoming sessions
+            </div>
+          )}
         </div>
 
       </div>

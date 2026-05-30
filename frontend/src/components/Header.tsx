@@ -2,15 +2,68 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession, clearSession } from "@/hooks/useSession";
+
+interface NotificationItem {
+  id: string;
+  title: string;
+  message: string | null;
+  type: string;
+  read: boolean;
+  link: string | null;
+  createdAt: string;
+}
 
 export default function Header() {
   const session = useSession();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
-  // Notification count — wire to real API later
-  const notifCount = 0;
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchNotifications = useCallback(async () => {
+    if (!session?.token) return;
+    try {
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const res = await fetch(`${apiBaseUrl}/api/notifications`, {
+        headers: { Authorization: `Bearer ${session.token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setNotifications(data.notifications);
+      setUnreadCount(data.unreadCount);
+    } catch {
+      // ignore
+    }
+  }, [session?.token]);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const handleNotifClick = useCallback(async (n: NotificationItem) => {
+    setNotifOpen(false);
+    if (n.link) router.push(n.link);
+    if (!n.read && session?.token) {
+      try {
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+        await fetch(`${apiBaseUrl}/api/notifications/${n.id}/read`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${session.token}` },
+        });
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+        setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
+      } catch {
+        // ignore
+      }
+    }
+  }, [session?.token, router]);
+
+  useEffect(() => {
+    if (notifOpen) fetchNotifications();
+  }, [notifOpen, fetchNotifications]);
 
   const profileHref =
     session?.user.role === "DOCTOR" ? "/doctor/profile" : "/patient/profile";
@@ -59,19 +112,70 @@ export default function Header() {
             {session ? (
               <>
                 {/* Notification Bell */}
-                <button
-                  aria-label="Notifications"
-                  className="relative w-9 h-9 flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all duration-200"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                  </svg>
-                  {notifCount > 0 && (
-                    <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center leading-none">
-                      {notifCount > 9 ? "9+" : notifCount}
-                    </span>
+                <div className="relative">
+                  <button
+                    onClick={() => { setNotifOpen((o) => !o); setMenuOpen(false); }}
+                    aria-label="Notifications"
+                    className="relative w-9 h-9 flex items-center justify-center rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all duration-200"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center leading-none">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Notifications Modal */}
+                  {notifOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
+                      <div className="absolute right-0 mt-2 w-80 z-50 bg-white border border-slate-100 rounded-2xl shadow-xl shadow-slate-900/10 overflow-hidden">
+                        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                          <p className="text-sm font-bold text-slate-900">Notifications</p>
+                          {unreadCount > 0 && (
+                            <span className="text-[10px] font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">
+                              {unreadCount} new
+                            </span>
+                          )}
+                        </div>
+                        {notifications.length === 0 ? (
+                          <div className="py-10 flex flex-col items-center justify-center text-center">
+                            <svg className="w-8 h-8 text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                            </svg>
+                            <p className="text-sm font-semibold text-slate-400">No notifications yet</p>
+                          </div>
+                        ) : (
+                          <div className="max-h-96 overflow-y-auto">
+                            {notifications.map((n) => (
+                              <button
+                                key={n.id}
+                                onClick={() => handleNotifClick(n)}
+                                className={`w-full text-left block px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors ${!n.read ? 'bg-teal-50/40' : ''}`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${!n.read ? 'bg-teal-500' : 'bg-slate-200'}`} />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-slate-800 truncate">{n.title}</p>
+                                    {n.message && (
+                                      <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.message}</p>
+                                    )}
+                                    <p className="text-[10px] text-slate-400 mt-1">
+                                      {new Date(n.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
-                </button>
+                </div>
 
                 {/* Profile Avatar + Dropdown */}
                 <div className="relative">

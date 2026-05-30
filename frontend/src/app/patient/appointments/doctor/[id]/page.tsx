@@ -51,6 +51,7 @@ export default function DoctorAppointmentPage() {
   const [error, setError] = useState<string | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
   const { showToast } = useToast();
 
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -182,6 +183,7 @@ export default function DoctorAppointmentPage() {
             slotDate: selected.dateISO,
             slotTime: selectedTime,
             timezoneOffsetMinutes: new Date().getTimezoneOffset(),
+            reason: reason.trim() || undefined,
           }),
         });
 
@@ -464,6 +466,19 @@ export default function DoctorAppointmentPage() {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-4">
+                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  Reason for Visit <span className="text-slate-500 normal-case">(optional)</span>
+                </label>
+                <textarea
+                  value={reason}
+                  onChange={e => setReason(e.target.value)}
+                  placeholder="e.g. Persistent cough, annual checkup, medication refill…"
+                  rows={2}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all resize-none"
+                />
               </div>
 
               {bookingError && (

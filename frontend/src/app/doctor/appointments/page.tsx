@@ -66,6 +66,17 @@ export default function DoctorAppointments() {
   const { showToast } = useToast();
 
   useEffect(() => {
+    if (sessionStorage.getItem('consultation_completed') === 'true') {
+      sessionStorage.removeItem('consultation_completed');
+      showToast({
+        title: 'Consultation completed',
+        description: 'The appointment has been marked as completed.',
+        variant: 'success',
+      });
+    }
+  }, [showToast]);
+
+  useEffect(() => {
     const fetchAppointments = async () => {
       if (!session?.token) {
         setIsLoading(false);
