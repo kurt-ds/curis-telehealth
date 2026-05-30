@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSession } from '@/hooks/useSession';
+import { useToast } from '@/components/ToastProvider';
 
 /* ─── Types ─────────────────────────────────────────── */
 interface QueueItem {
@@ -98,6 +99,7 @@ function StatusBadge({ status }: { status: QueueItem['status'] }) {
 /* ─── Page ───────────────────────────────────────────── */
 export default function DoctorDashboard() {
   const session = useSession();
+  const { showToast } = useToast();
   const dateRange = useMemo(() => buildDateRange(), []);
 
   // selectedDayIndex: 0 = today, 1 = tomorrow, …, 13 = 2 weeks out
@@ -165,6 +167,11 @@ export default function DoctorDashboard() {
 
       setSavedDay(selectedDayIndex);
       setTimeout(() => setSavedDay(null), 2500);
+      showToast({
+        title: 'Availability updated',
+        description: 'Your time slots were saved.',
+        variant: 'success',
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save availability';
       setAvailabilityError(message);
@@ -376,7 +383,7 @@ export default function DoctorDashboard() {
                     <button
                       key={slot.label}
                       onClick={() => toggleSlot(slot.label)}
-                      disabled={slot.timing !== 'upcoming' || slot.state === 'restricted'}
+                      disabled={slot.timing !== 'upcoming' || slot.booked}
                       className={`rounded-xl py-3 px-1 flex flex-col items-center transition-all duration-200 border-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-teal-400 ${
                         slot.timing === 'past'
                           ? 'bg-slate-50 border-slate-100 text-slate-400'

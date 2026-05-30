@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from '@/hooks/useSession';
+import { useToast } from '@/components/ToastProvider';
 
 interface TimeSlot {
   time: string;
@@ -50,6 +51,7 @@ export default function DoctorAppointmentPage() {
   const [error, setError] = useState<string | null>(null);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -202,6 +204,11 @@ export default function DoctorAppointmentPage() {
         );
         setSelectedTime('');
         setBookingSuccess(`Appointment booked with ${doctor.name} on ${selected.label} at ${selectedTime}.`);
+        showToast({
+          title: 'Appointment booked',
+          description: `You are booked for ${selected.label} at ${selectedTime}.`,
+          variant: 'success',
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to book appointment';
         setBookingError(message);

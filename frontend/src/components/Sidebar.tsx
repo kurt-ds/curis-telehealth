@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { clearSession } from '@/hooks/useSession';
 
 interface SidebarProps {
   role: 'patient' | 'doctor';
@@ -11,6 +12,7 @@ interface SidebarProps {
 export default function Sidebar({ role }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   const navItems = [
     {
@@ -63,6 +65,12 @@ export default function Sidebar({ role }: SidebarProps) {
   };
 
   const roleLabel = role === 'patient' ? 'Curis Health\nTelehealth Platform' : 'Curis Health\nProvider Network';
+
+  const handleLogout = () => {
+    clearSession();
+    setIsOpen(false);
+    router.push('/login');
+  };
 
   return (
     <>
@@ -129,7 +137,10 @@ export default function Sidebar({ role }: SidebarProps) {
 
         {/* Sidebar Footer */}
         <div className="border-t border-slate-100 p-4 space-y-2">
-          <button className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 font-medium text-sm transition-all duration-200">
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 font-medium text-sm transition-all duration-200"
+          >
             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
               <path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z" />
             </svg>

@@ -52,4 +52,34 @@
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(135deg, #59c2ff 0%, #0fd7c2 100%);
   }
+
+  .toast-enter {
+    animation: toastIn 220ms ease-out;
+  }
+
+  .toast-exit {
+    animation: toastOut 220ms ease-in forwards;
+  }
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toastOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
 }

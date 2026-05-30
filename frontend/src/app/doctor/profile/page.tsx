@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { setSessionProfile, useSession } from '@/hooks/useSession';
+import { useToast } from '@/components/ToastProvider';
 
 /* ─── Types ──────────────────────────────────────────── */
 interface DoctorProfile {
@@ -225,6 +226,7 @@ export default function DoctorProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [isAvatarUploading, setIsAvatarUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -312,6 +314,11 @@ export default function DoctorProfilePage() {
           avatarUrl: data.profile.avatarUrl ?? null,
         });
       }
+      showToast({
+        title: 'Profile updated',
+        description: 'Your changes have been saved.',
+        variant: 'success',
+      });
       setSavingSection(null);
       setEditingSection(null);
       setSavedSection(section);
@@ -359,6 +366,11 @@ export default function DoctorProfilePage() {
           avatarUrl: data.avatarUrl,
         });
       }
+      showToast({
+        title: 'Photo updated',
+        description: 'Your profile image is now live.',
+        variant: 'success',
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to upload avatar';
       setError(message);
