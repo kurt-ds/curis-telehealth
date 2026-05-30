@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSession } from '@/hooks/useSession';
 import { useToast } from '@/components/ToastProvider';
+import CalendarView from '@/components/CalendarView';
 
 interface Appointment {
   id: string;
@@ -59,6 +60,9 @@ export default function PatientAppointments() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [selectedCalDate, setSelectedCalDate] = useState('');
 
   const [cancelingAppointment, setCancelingAppointment] = useState<string | null>(null);
   const [reschedulingAppointment, setReschedulingAppointment] = useState<string | null>(null);
@@ -356,14 +360,106 @@ export default function PatientAppointments() {
     };
   }, [appointments]);
 
+  const allCalendarDates = useMemo(() => appointments.map(a => a.date), [appointments]);
+
+  const calAppointments = useMemo(
+    () => appointments.filter(a => a.date === selectedCalDate),
+    [appointments, selectedCalDate],
+  );
+
+  // Auto-select first date with appointments when switching to calendar
+  useEffect(() => {
+    if (viewMode === 'calendar' && !selectedCalDate && allCalendarDates.length > 0) {
+      setSelectedCalDate(allCalendarDates[0]);
+    }
+  }, [viewMode, selectedCalDate, allCalendarDates]);
+
   return (
     <div className="p-4 md:p-8 max-w-7xl">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl md:text-4xl font-black text-slate-900 mb-1">Your Appointments</h1>
         <p className="text-slate-500 text-sm md:text-base">View and manage your scheduled consultations with our doctors.</p>
+        <div className="flex gap-1 bg-slate-100 rounded-xl p-1 mt-4 w-fit">
+          <button
+            onClick={() => setViewMode('list')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all duration-150 ${
+              viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <svg className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            List
+          </button>
+          <button
+            onClick={() => setViewMode('calendar')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all duration-150 ${
+              viewMode === 'calendar' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <svg className="w-3.5 h-3.5 inline mr-1.5 -mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h14M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            Calendar
+          </button>
+        </div>
       </div>
 
+      {viewMode === 'calendar' ? (
+        <>
+          <CalendarView
+            dates={allCalendarDates}
+            selectedDate={selectedCalDate}
+            onDateSelect={setSelectedCalDate}
+          />
+          {calAppointments.length > 0 ? (
+            <div className="mt-4 space-y-3">
+              <p className="text-sm font-semibold text-slate-700">
+                Appointments on {selectedCalDate ? new Date(selectedCalDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+              </p>
+              {calAppointments.map(apt => (
+                <div key={apt.id} className="bg-white border border-slate-100 rounded-xl px-5 py-4 shadow-sm flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-900">{apt.doctorName}</p>
+                    <p className="text-xs text-slate-500">{apt.specialty} — {apt.time}</p>
+                    {apt.reason && <p className="text-xs text-slate-400 mt-0.5">{apt.reason}</p>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border ${apt.status === 'scheduled' ? 'bg-cyan-50 text-cyan-700 border-cyan-200' : apt.status === 'completed' ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                      {apt.status.charAt(0).toUpperCase() + apt.status.slice(1)}
+                    </span>
+                    {apt.status === 'scheduled' && (
+                      <>
+                        <Link href={`/patient/appointments/${apt.id}`} className="text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 px-3 py-1.5 rounded-lg transition-colors">
+                          Join
+                        </Link>
+                        <button
+                          onClick={() => handleRescheduleClick(apt.id)}
+                          className="text-xs font-bold text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 hover:bg-blue-50 px-2.5 py-1.5 rounded-lg transition-colors"
+                        >
+                          Reschedule
+                        </button>
+                        <button
+                          onClick={() => handleCancelClick(apt.id)}
+                          className="text-xs font-bold text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 hover:bg-red-50 px-2.5 py-1.5 rounded-lg transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : selectedCalDate && (
+            <div className="mt-4 bg-white border border-slate-100 rounded-2xl p-8 text-center">
+              <p className="text-sm text-slate-400">No appointments on this day.</p>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
       {/* Upcoming Appointments Section */}
       <div className="mb-8">
         <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-4">Upcoming</h2>
@@ -552,6 +648,8 @@ export default function PatientAppointments() {
           </div>
         </div>
       )}
+        </>
+      )}
 
       {/* Cancel Modal */}
       {showCancelConfirm && cancelingAppointment && (
@@ -576,7 +674,7 @@ export default function PatientAppointments() {
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
                 placeholder="Let us know why you're cancelling..."
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none h-24"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none h-24"
               />
             </div>
 
