@@ -416,6 +416,30 @@ async function main() {
   }
   console.log(`  ✅  ${upcomingAppointments.length} upcoming appointments created`);
 
+  /* ─── Test session appointments (today 8pm & 9pm) ─── */
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const testTimes = ["20:00", "21:00"];
+  for (const time of testTimes) {
+    const patientId = seededPatientIds[0];
+    const doctorId = seededDoctorIds[0];
+    const [h, m] = time.split(":").map(Number);
+    const scheduledAt = new Date();
+    scheduledAt.setHours(h, m, 0, 0);
+
+    await prisma.appointment.create({
+      data: {
+        doctorId,
+        patientId,
+        scheduledAt,
+        status: "UPCOMING",
+        type: "Test Consultation",
+        reason: `Test session at ${time}`,
+        roomUrl: "https://meet.jit.si/curis-telehealth",
+      },
+    });
+    console.log(`  ✅  Test appointment: ${todayStr} ${time} — doctor1 / patient1`);
+  }
+
   /* ─── Doctor Availability (next 7 days) ──────────────── */
   const today = new Date();
   today.setHours(0, 0, 0, 0);

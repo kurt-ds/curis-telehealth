@@ -9,6 +9,7 @@ import { appointmentsRouter } from "./routes/appointments";
 import { profileRouter } from "./routes/profile";
 import { notificationsRouter } from "./routes/notifications";
 import { aiRouter } from "./routes/ai";
+import { startScheduler } from "./scheduler";
 
 const app = express();
 const PORT = process.env.PORT ?? 8080;
@@ -53,6 +54,9 @@ app.use(
     res.status(500).json({ error: err.message ?? "Internal server error" });
   }
 );
+
+// ── Scheduler ────────────────────────────────────────────────────
+startScheduler();
 
 // ── Start ─────────────────────────────────────────────────────────
 app.listen(PORT, () => {
