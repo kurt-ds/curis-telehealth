@@ -128,16 +128,34 @@ appointmentsRouter.post(
         return res.status(409).json({ error: "Selected time slot is already booked." });
       }
 
-      const appointment = await prisma.appointment.create({
-        data: {
-          doctorId,
-          patientId: patient.id,
-          scheduledAt: scheduledDate,
-          reason: reason || null,
-          type: type || null,
-          consultationNotes: consultationNotes || null,
-          roomUrl: roomUrl || null,
-        },
+      const appointment = await prisma.$transaction(async (tx) => {
+        const appointment = await tx.appointment.create({
+          data: {
+            doctorId,
+            patientId: patient.id,
+            scheduledAt: scheduledDate,
+            reason: reason || null,
+            type: type || null,
+            consultationNotes: consultationNotes || null,
+            roomUrl: roomUrl || null,
+          },
+        });
+
+        const nextSlots = slots.map((slot) =>
+          slot.time === slotTime ? { ...slot, available: false } : slot
+        );
+
+        await tx.doctorAvailability.update({
+          where: {
+            doctorId_date: {
+              doctorId,
+              date: startOfDay,
+            },
+          },
+          data: { slotsJson: nextSlots },
+        });
+
+        return appointment;
       });
 
       return res.status(201).json({ appointment });

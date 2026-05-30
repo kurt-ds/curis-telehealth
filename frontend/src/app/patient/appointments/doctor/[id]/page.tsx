@@ -31,6 +31,10 @@ interface AvailabilityDay {
   slots: TimeSlot[];
 }
 
+interface DisplaySlot extends TimeSlot {
+  timing: 'past' | 'ongoing' | 'upcoming';
+}
+
 export default function DoctorAppointmentPage() {
   const params = useParams();
   const doctorId = params.id as string;
@@ -111,6 +115,27 @@ export default function DoctorAppointmentPage() {
   const slots = useMemo(() => {
     return availabilityDays.find((day) => day.dateISO === selectedDateISO)?.slots ?? [];
   }, [availabilityDays, selectedDateISO]);
+  const displaySlots = useMemo(() => {
+    const todayISO = new Date().toISOString().slice(0, 10);
+    if (selectedDateISO !== todayISO) {
+      return slots.map((slot) => ({ ...slot, timing: 'upcoming' as const }));
+    }
+
+    const currentHour = new Date().getHours();
+    return slots.map((slot) => {
+      const hour = Number(slot.time.split(':')[0]);
+      if (Number.isNaN(hour)) {
+        return { ...slot, timing: 'upcoming' as const };
+      }
+      if (hour < currentHour) {
+        return { ...slot, timing: 'past' as const };
+      }
+      if (hour === currentHour) {
+        return { ...slot, timing: 'ongoing' as const };
+      }
+      return { ...slot, timing: 'upcoming' as const };
+    });
+  }, [selectedDateISO, slots]);
 
   const handleConfirm = () => {
     setIsConfirming(true);
@@ -144,6 +169,19 @@ export default function DoctorAppointmentPage() {
           throw new Error(data.error || 'Failed to book appointment');
         }
 
+        setAvailabilityDays((prev) =>
+          prev.map((day) =>
+            day.dateISO === selected.dateISO
+              ? {
+                  ...day,
+                  slots: day.slots.map((slot) =>
+                    slot.time === selectedTime ? { ...slot, available: false } : slot
+                  ),
+                }
+              : day
+          )
+        );
+        setSelectedTime('');
         setBookingSuccess(`Appointment booked with ${doctor.name} on ${selected.label} at ${selectedTime}.`);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to book appointment';
@@ -297,22 +335,29 @@ export default function DoctorAppointmentPage() {
                       <h4 className="font-semibold text-slate-900">Morning</h4>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {slots
+                      {displaySlots
                         .filter((slot) => slot.time < '12:00')
                         .map((slot) => (
                           <button
                             key={slot.time}
                             onClick={() => setSelectedTime(slot.time)}
-                            disabled={!slot.available}
+                            disabled={!slot.available || slot.timing !== 'upcoming'}
                             className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all duration-200 ${
-                              !slot.available
+                              !slot.available || slot.timing === 'past'
                                 ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                : slot.timing === 'ongoing'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed'
                                 : selectedTime === slot.time
                                 ? 'bg-teal-600 text-white border border-teal-600'
                                 : 'bg-white text-slate-700 border border-slate-200 hover:border-teal-600'
                             }`}
                           >
                             {slot.time}
+                            {slot.timing !== 'upcoming' && (
+                              <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide">
+                                {slot.timing === 'past' ? 'Past' : 'Ongoing'}
+                              </span>
+                            )}
                           </button>
                         ))}
                     </div>
@@ -326,22 +371,29 @@ export default function DoctorAppointmentPage() {
                       <h4 className="font-semibold text-slate-900">Afternoon</h4>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {slots
+                      {displaySlots
                         .filter((slot) => slot.time >= '12:00')
                         .map((slot) => (
                           <button
                             key={slot.time}
                             onClick={() => setSelectedTime(slot.time)}
-                            disabled={!slot.available}
+                            disabled={!slot.available || slot.timing !== 'upcoming'}
                             className={`px-4 py-3 rounded-xl font-semibold text-sm transition-all duration-200 ${
-                              !slot.available
+                              !slot.available || slot.timing === 'past'
                                 ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                : slot.timing === 'ongoing'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed'
                                 : selectedTime === slot.time
                                 ? 'bg-teal-600 text-white border border-teal-600'
                                 : 'bg-white text-slate-700 border border-slate-200 hover:border-teal-600'
                             }`}
                           >
                             {slot.time}
+                            {slot.timing !== 'upcoming' && (
+                              <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide">
+                                {slot.timing === 'past' ? 'Past' : 'Ongoing'}
+                              </span>
+                            )}
                           </button>
                         ))}
                     </div>
