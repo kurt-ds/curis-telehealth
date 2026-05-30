@@ -445,8 +445,8 @@ export async function main() {
   }
   console.log(`  ✅  ${upcomingAppointments.length} upcoming appointments created`);
 
-  /* ─── Test session appointments (today 8pm & 9pm Manila time) ─── */
-  const testTimes = ["20:00", "21:00"];
+  /* ─── Test session appointments (today 8pm, 9pm, 10pm, 11pm Manila time) ─── */
+  const testTimes = ["20:00", "21:00", "22:00", "23:00"];
   for (const time of testTimes) {
     const patientId = seededPatientIds[0];
     const doctorId = seededDoctorIds[0];
@@ -465,6 +465,7 @@ export async function main() {
         roomUrl: "https://meet.jit.si/curis-telehealth",
       },
     });
+
     console.log(`  ✅  Test appointment: ${today.year}-${String(today.month + 1).padStart(2, "0")}-${String(today.day).padStart(2, "0")} ${time} Manila — doctor1 / patient1`);
   }
 
@@ -475,6 +476,9 @@ export async function main() {
       slots.push({ time: `${hour.toString().padStart(2, "0")}:00`, available: true });
     }
     for (let hour = 13; hour < 17; hour++) {
+      slots.push({ time: `${hour.toString().padStart(2, "0")}:00`, available: true });
+    }
+    for (let hour = 22; hour < 24; hour++) {
       slots.push({ time: `${hour.toString().padStart(2, "0")}:00`, available: true });
     }
     return slots;
