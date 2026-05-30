@@ -23,6 +23,22 @@ function validateRequiredFields(
   return `${missing.join(", ")} ${missing.length > 1 ? "are" : "is"} required.`;
 }
 
+function buildDefaultSlots() {
+  const slots: { time: string; available: boolean }[] = [];
+
+  const addSlots = (startHour: number, endHour: number) => {
+    for (let hour = startHour; hour < endHour; hour += 1) {
+      const label = `${hour.toString().padStart(2, "0")}:00`;
+      slots.push({ time: label, available: true });
+    }
+  };
+
+  addSlots(8, 12);
+  addSlots(13, 17);
+
+  return slots;
+}
+
 // ── POST /api/auth/register/patient ──────────────────────────────────────────
 // Accepts multipart/form-data so the avatar file can be included.
 authRouter.post(
@@ -208,7 +224,7 @@ authRouter.post(
       const hashedPassword = await bcrypt.hash(password, 12);
       const avatarUrl = (req.file as Express.Multer.File & { path?: string })?.path ?? null;
 
-      const { user, doctor } = await prisma.$transaction(async (tx) => {
+       const { user, doctor } = await prisma.$transaction(async (tx) => {
         const user = await tx.user.create({
           data: { email, password: hashedPassword, role: "DOCTOR" },
         });
@@ -227,6 +243,32 @@ authRouter.post(
             avatarUrl,
           },
         });
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const availabilityCreates = Array.from({ length: 14 }, (_, offset) => {
+          const date = new Date(today);
+          date.setDate(today.getDate() + offset);
+          return tx.doctorAvailability.upsert({
+            where: {
+              doctorId_date: {
+                doctorId: doctor.id,
+                date,
+              },
+            },
+            update: {
+              slotsJson: buildDefaultSlots(),
+            },
+            create: {
+              doctorId: doctor.id,
+              date,
+              slotsJson: buildDefaultSlots(),
+            },
+          });
+        });
+
+        await Promise.all(availabilityCreates);
         return { user, doctor };
       });
 
