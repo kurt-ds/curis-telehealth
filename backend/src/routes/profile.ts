@@ -496,3 +496,109 @@ profileRouter.post(
     }
   }
 );
+
+profileRouter.get(
+  "/doctor/availability/range",
+  requireAuth,
+  requireRole("DOCTOR"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const doctor = await prisma.doctor.findUnique({
+        where: { userId: req.user?.sub ?? "" },
+        select: { id: true },
+      });
+
+      if (!doctor) {
+        return res.status(404).json({ error: "Doctor profile not found." });
+      }
+
+      const fromParam = req.query.from ? String(req.query.from) : null;
+      const toParam = req.query.to ? String(req.query.to) : null;
+
+      const fromDate = fromParam ? new Date(fromParam) : new Date();
+      fromDate.setHours(0, 0, 0, 0);
+
+      const toDate = toParam ? new Date(toParam) : new Date(fromDate);
+      toDate.setDate(fromDate.getDate() + 13);
+      toDate.setHours(23, 59, 59, 999);
+
+      const availability = await prisma.doctorAvailability.findMany({
+        where: {
+          doctorId: doctor.id,
+          date: {
+            gte: fromDate,
+            lte: toDate,
+          },
+        },
+        select: {
+          date: true,
+          slotsJson: true,
+        },
+        orderBy: { date: "asc" },
+      });
+
+      return res.json({ availability });
+    } catch (err) {
+      console.error("[GET /api/doctor/availability/range]", err);
+      return res.status(500).json({ error: "Internal server error." });
+    }
+  }
+);
+
+profileRouter.put(
+  "/doctor/availability",
+  requireAuth,
+  requireRole("DOCTOR"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { date, slots } = req.body as {
+        date?: string;
+        slots?: { label: string; state: "open" | "restricted" }[];
+      };
+
+      if (!date || !Array.isArray(slots)) {
+        return res.status(400).json({ error: "date and slots are required." });
+      }
+
+      const parsedDate = new Date(date);
+      if (Number.isNaN(parsedDate.getTime())) {
+        return res.status(400).json({ error: "date must be valid." });
+      }
+      parsedDate.setHours(0, 0, 0, 0);
+
+      const doctor = await prisma.doctor.findUnique({
+        where: { userId: req.user?.sub ?? "" },
+        select: { id: true },
+      });
+
+      if (!doctor) {
+        return res.status(404).json({ error: "Doctor profile not found." });
+      }
+
+      const slotsJson = slots.map((slot) => ({
+        time: slot.label,
+        available: slot.state === "open",
+      }));
+
+      await prisma.doctorAvailability.upsert({
+        where: {
+          doctorId_date: {
+            doctorId: doctor.id,
+            date: parsedDate,
+          },
+        },
+        update: { slotsJson },
+        create: {
+          doctorId: doctor.id,
+          date: parsedDate,
+          slotsJson,
+        },
+      });
+
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("[PUT /api/doctor/availability]", err);
+      return res.status(500).json({ error: "Internal server error." });
+    }
+  }
+);

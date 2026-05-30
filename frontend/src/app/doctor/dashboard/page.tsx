@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSession } from '@/hooks/useSession';
 
 /* ─── Types ─────────────────────────────────────────── */
 interface QueueItem {
@@ -16,6 +17,17 @@ interface QueueItem {
 interface HourSlot {
   label: string;
   state: 'open' | 'restricted';
+}
+
+interface AvailabilityResponse {
+  availability: {
+    date: string;
+    slotsJson: { time: string; available: boolean }[];
+  }[];
+}
+
+interface AvailabilitySaveResponse {
+  success: boolean;
 }
 
 /* ─── Helpers ────────────────────────────────────────── */
@@ -83,6 +95,7 @@ function StatusBadge({ status }: { status: QueueItem['status'] }) {
 
 /* ─── Page ───────────────────────────────────────────── */
 export default function DoctorDashboard() {
+  const session = useSession();
   const dateRange = useMemo(() => buildDateRange(), []);
 
   // selectedDayIndex: 0 = today, 1 = tomorrow, …, 13 = 2 weeks out
@@ -92,11 +105,28 @@ export default function DoctorDashboard() {
   const [daySlots, setDaySlots] = useState<Record<number, HourSlot[]>>(() =>
     Object.fromEntries(dateRange.map((_, i) => [i, buildSlots(i)])),
   );
+  const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(true);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [isAvailabilitySaving, setIsAvailabilitySaving] = useState(false);
   const [savedDay, setSavedDay] = useState<number | null>(null);
   const [queue] = useState<QueueItem[]>(INITIAL_QUEUE);
 
   const slots = daySlots[selectedDayIndex] ?? [];
   const selectedDate = dateRange[selectedDayIndex];
+  const now = new Date();
+  const isToday =
+    selectedDate.getFullYear() === now.getFullYear() &&
+    selectedDate.getMonth() === now.getMonth() &&
+    selectedDate.getDate() === now.getDate();
+  const currentHour = now.getHours();
+  const displaySlots = slots.map((slot) => {
+    if (!isToday) return { ...slot, timing: 'upcoming' as const };
+    const hour = Number(slot.label.split(':')[0]);
+    if (Number.isNaN(hour)) return { ...slot, timing: 'upcoming' as const };
+    if (hour < currentHour) return { ...slot, timing: 'past' as const };
+    if (hour === currentHour) return { ...slot, timing: 'ongoing' as const };
+    return { ...slot, timing: 'upcoming' as const };
+  });
 
   const toggleSlot = (label: string) => {
     setDaySlots(prev => ({
@@ -108,14 +138,108 @@ export default function DoctorDashboard() {
     setSavedDay(null);
   };
 
-  const applyChanges = () => {
-    setSavedDay(selectedDayIndex);
-    setTimeout(() => setSavedDay(null), 2500);
+  const applyChanges = async () => {
+    if (!session?.token) return;
+    const selectedSlots = daySlots[selectedDayIndex] ?? [];
+
+    try {
+      setIsAvailabilitySaving(true);
+      setAvailabilityError(null);
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const date = selectedDate.toLocaleDateString('en-CA');
+      const response = await fetch(`${apiBaseUrl}/api/doctor/availability`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ date, slots: selectedSlots }),
+      });
+
+      const data = (await response.json()) as AvailabilitySaveResponse;
+      if (!response.ok || !data.success) {
+        throw new Error((data as { error?: string }).error || 'Failed to save availability');
+      }
+
+      setSavedDay(selectedDayIndex);
+      setTimeout(() => setSavedDay(null), 2500);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save availability';
+      setAvailabilityError(message);
+    } finally {
+      setIsAvailabilitySaving(false);
+    }
   };
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const isSaved = savedDay === selectedDayIndex;
+
+  useEffect(() => {
+    const fetchAvailability = async () => {
+      if (!session?.token) {
+        setIsAvailabilityLoading(false);
+        setAvailabilityError(null);
+        return;
+      }
+
+      try {
+        setIsAvailabilityLoading(true);
+        setAvailabilityError(null);
+
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+        const from = dateRange[0];
+        const to = dateRange[dateRange.length - 1];
+        const fromParam = from.toLocaleDateString('en-CA');
+        const toParam = to.toLocaleDateString('en-CA');
+
+        const response = await fetch(
+          `${apiBaseUrl}/api/doctor/availability/range?from=${fromParam}&to=${toParam}`,
+          {
+            headers: {
+              Authorization: `Bearer ${session.token}`,
+            },
+          }
+        );
+
+        const data = (await response.json()) as AvailabilityResponse;
+        if (!response.ok) {
+          throw new Error((data as { error?: string }).error || 'Failed to load availability');
+        }
+
+        const availabilityByDate = new Map(
+          data.availability.map((item) => [
+            new Date(item.date).toLocaleDateString('en-CA'),
+            item.slotsJson,
+          ])
+        );
+
+        const nextDaySlots = Object.fromEntries(
+          dateRange.map((date, i) => {
+            const key = date.toLocaleDateString('en-CA');
+            const slotsJson = availabilityByDate.get(key);
+            if (!slotsJson) {
+              return [i, buildSlots(i)];
+            }
+            const mapped = slotsJson.map((slot) => ({
+              label: slot.time,
+              state: slot.available ? 'open' : 'restricted',
+            }));
+            return [i, mapped];
+          })
+        );
+
+        setDaySlots(nextDaySlots);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load availability';
+        setAvailabilityError(message);
+      } finally {
+        setIsAvailabilityLoading(false);
+      }
+    };
+
+    fetchAvailability();
+  }, [dateRange, session?.token]);
 
   return (
     <div className="p-4 md:p-8 max-w-7xl">
@@ -224,36 +348,61 @@ export default function DoctorDashboard() {
           </div>
 
           {/* Slot grid – 3 cols on mobile, 4 cols on sm+ */}
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-            {slots.map(slot => (
-              <button
-                key={slot.label}
-                onClick={() => toggleSlot(slot.label)}
-                className={`rounded-xl py-3 px-1 flex flex-col items-center transition-all duration-200 border-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-teal-400 ${
-                  slot.state === 'open'
-                    ? 'bg-teal-600 border-teal-600 text-white hover:bg-teal-700'
-                    : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                <span className="text-xs font-bold">{slot.label}</span>
-                <span className="text-[9px] font-semibold mt-0.5 uppercase tracking-wide opacity-80">
-                  {slot.state === 'open' ? 'OPEN' : 'RESTRICTED'}
-                </span>
-              </button>
-            ))}
-          </div>
+          {availabilityError ? (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+              {availabilityError}
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {isAvailabilityLoading
+                ? Array.from({ length: 12 }).map((_, idx) => (
+                    <div
+                      key={`slot-skeleton-${idx}`}
+                      className="rounded-xl py-3 px-1 border-2 border-slate-100 bg-slate-50 animate-pulse h-[52px]"
+                    />
+                  ))
+                : displaySlots.map((slot) => (
+                    <button
+                      key={slot.label}
+                      onClick={() => toggleSlot(slot.label)}
+                      disabled={slot.timing !== 'upcoming'}
+                      className={`rounded-xl py-3 px-1 flex flex-col items-center transition-all duration-200 border-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-teal-400 ${
+                        slot.timing === 'past'
+                          ? 'bg-slate-50 border-slate-100 text-slate-400'
+                          : slot.timing === 'ongoing'
+                          ? 'bg-amber-50 border-amber-200 text-amber-700'
+                          : slot.state === 'open'
+                          ? 'bg-teal-600 border-teal-600 text-white hover:bg-teal-700'
+                          : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-xs font-bold">{slot.label}</span>
+                      <span className="text-[9px] font-semibold mt-0.5 uppercase tracking-wide opacity-80">
+                        {slot.timing === 'past'
+                          ? 'PAST'
+                          : slot.timing === 'ongoing'
+                          ? 'ONGOING'
+                          : slot.state === 'open'
+                          ? 'OPEN'
+                          : 'RESTRICTED'}
+                      </span>
+                    </button>
+                  ))}
+            </div>
+          )}
 
           {/* Apply button */}
           <div className="flex justify-end pt-1">
             <button
               onClick={applyChanges}
+              disabled={isAvailabilitySaving}
               className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
                 isSaved
                   ? 'bg-teal-100 text-teal-700 border border-teal-200'
                   : 'bg-teal-600 hover:bg-teal-700 text-white shadow-sm hover:shadow-md'
-              }`}
+              } ${isAvailabilitySaving ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
-              {isSaved ? '✓ Saved' : 'Apply Changes'}
+              {isAvailabilitySaving ? 'Saving...' : isSaved ? '✓ Saved' : 'Apply Changes'}
             </button>
           </div>
         </div>
