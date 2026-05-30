@@ -96,7 +96,8 @@ appointmentsRouter.post(
         return res.status(404).json({ error: "Doctor not found." });
       }
 
-      const startOfDay = new Date(`${slotDate}T00:00:00Z`);
+      const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0));
+      startOfDay.setUTCMinutes(startOfDay.getUTCMinutes() + timezoneOffsetMinutes);
 
       const availability = await prisma.doctorAvailability.findUnique({
         where: {
@@ -241,7 +242,9 @@ appointmentsRouter.post(
       const cancelDateIso = `${localTimeForCancel.getUTCFullYear()}-${(localTimeForCancel.getUTCMonth() + 1)
         .toString()
         .padStart(2, "0")}-${localTimeForCancel.getUTCDate().toString().padStart(2, "0")}`;
-      const startOfDay = new Date(`${cancelDateIso}T00:00:00Z`);
+      const [cy, cm, cd] = cancelDateIso.split("-").map(Number);
+      const startOfDay = new Date(Date.UTC(cy, cm - 1, cd, 0, 0));
+      startOfDay.setUTCMinutes(startOfDay.getUTCMinutes() + timezoneOffsetMinutes);
 
       await prisma.$transaction(async (tx) => {
         await tx.appointment.update({
@@ -288,125 +291,14 @@ appointmentsRouter.post(
           userId: appointment.doctor.userId,
           type: "cancelled",
           title: "Appointment Cancelled",
-          message: `A patient has cancelled their appointment scheduled on ${appointment.scheduledAt.toISOString().split("T")[0]}.`,
-          link: `/doctor/appointments`,
+          message: `A patient cancelled their appointment scheduled on ${appointment.scheduledAt.toISOString().split("T")[0]}.`,
+          link: "/doctor/appointments",
         },
       });
 
       return res.json({ success: true });
     } catch (err) {
       console.error("[POST /api/appointments/:id/cancel]", err);
-      return res.status(500).json({ error: "Internal server error." });
-    }
-  }
-);
-
-appointmentsRouter.post(
-  "/:id/doctor-cancel",
-  requireAuth,
-  requireRole("DOCTOR"),
-  async (req: AuthRequest, res: Response) => {
-    try {
-      const appointmentId = req.params.id;
-      const { reason, timezoneOffsetMinutes } = req.body as { reason?: string; timezoneOffsetMinutes?: number };
-
-      if (timezoneOffsetMinutes === undefined) {
-        return res.status(400).json({ error: "timezoneOffsetMinutes is required." });
-      }
-
-      const doctor = await prisma.doctor.findUnique({
-        where: { userId: req.user?.sub ?? "" },
-        select: { id: true },
-      });
-
-      if (!doctor) {
-        return res.status(404).json({ error: "Doctor profile not found." });
-      }
-
-      const appointmentWithPatient = await prisma.appointment.findUnique({
-        where: { id: appointmentId },
-        select: {
-          id: true,
-          doctorId: true,
-          scheduledAt: true,
-          status: true,
-          patient: { select: { userId: true } },
-        },
-      });
-
-      if (!appointmentWithPatient || appointmentWithPatient.doctorId !== doctor.id) {
-        return res.status(404).json({ error: "Appointment not found." });
-      }
-
-      const appointment = appointmentWithPatient;
-
-      if (appointment.status === "COMPLETED") {
-        return res.status(400).json({ error: "Completed appointments cannot be cancelled." });
-      }
-
-      if (appointment.status === "CANCELLED") {
-        return res.status(400).json({ error: "Appointment is already cancelled." });
-      }
-
-      const localTimeForCancel = new Date(appointment.scheduledAt.getTime() - timezoneOffsetMinutes * 60000);
-      const cancelDateIso = `${localTimeForCancel.getUTCFullYear()}-${(localTimeForCancel.getUTCMonth() + 1)
-        .toString()
-        .padStart(2, "0")}-${localTimeForCancel.getUTCDate().toString().padStart(2, "0")}`;
-      const startOfDay = new Date(`${cancelDateIso}T00:00:00Z`);
-
-      await prisma.$transaction(async (tx) => {
-        await tx.appointment.update({
-          where: { id: appointment.id },
-          data: {
-            status: "CANCELLED",
-            reason: reason || null,
-          },
-        });
-
-        const availability = await tx.doctorAvailability.findUnique({
-          where: {
-            doctorId_date: {
-              doctorId: appointment.doctorId,
-              date: startOfDay,
-            },
-          },
-          select: { slotsJson: true },
-        });
-
-        const slots = (availability?.slotsJson as { time: string; available: boolean }[]) ?? [];
-        const slotTime = `${localTimeForCancel.getUTCHours()
-          .toString()
-          .padStart(2, "0")}:${localTimeForCancel.getUTCMinutes()
-          .toString()
-          .padStart(2, "0")}`;
-        const nextSlots = slots.map((slot) =>
-          slot.time === slotTime ? { ...slot, available: true } : slot
-        );
-
-        await tx.doctorAvailability.update({
-          where: {
-            doctorId_date: {
-              doctorId: appointment.doctorId,
-              date: startOfDay,
-            },
-          },
-          data: { slotsJson: nextSlots },
-        });
-      });
-
-      await prisma.notification.create({
-        data: {
-          userId: appointment.patient.userId,
-          type: "cancelled",
-          title: "Appointment Cancelled by Doctor",
-          message: `Your appointment scheduled on ${appointment.scheduledAt.toISOString().split("T")[0]} has been cancelled.`,
-          link: "/patient/appointments",
-        },
-      });
-
-      return res.json({ success: true });
-    } catch (err) {
-      console.error("[POST /api/appointments/:id/doctor-cancel]", err);
       return res.status(500).json({ error: "Internal server error." });
     }
   }
@@ -480,7 +372,9 @@ appointmentsRouter.post(
         return res.status(400).json({ error: "new time must be in the future." });
       }
 
-      const startOfNewDay = new Date(`${newDate}T00:00:00Z`);
+      const [ny, nm, nd] = newDate.split("-").map(Number);
+      const startOfNewDay = new Date(Date.UTC(ny, nm - 1, nd, 0, 0));
+      startOfNewDay.setUTCMinutes(startOfNewDay.getUTCMinutes() + timezoneOffsetMinutes);
       const availability = await prisma.doctorAvailability.findUnique({
         where: {
           doctorId_date: {
@@ -520,7 +414,9 @@ appointmentsRouter.post(
       const oldDateIso = `${oldLocal.getUTCFullYear()}-${(oldLocal.getUTCMonth() + 1)
         .toString()
         .padStart(2, "0")}-${oldLocal.getUTCDate().toString().padStart(2, "0")}`;
-      const startOfOldDay = new Date(`${oldDateIso}T00:00:00Z`);
+      const [oy, om, od] = oldDateIso.split("-").map(Number);
+      const startOfOldDay = new Date(Date.UTC(oy, om - 1, od, 0, 0));
+      startOfOldDay.setUTCMinutes(startOfOldDay.getUTCMinutes() + timezoneOffsetMinutes);
 
       const updated = await prisma.$transaction(async (tx) => {
         const updatedAppointment = await tx.appointment.update({
