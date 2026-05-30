@@ -288,6 +288,8 @@ export default function DoctorRecords() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
   const fetchPatients = useCallback(async () => {
     if (!session?.token) return;
     setLoading(true);
@@ -295,7 +297,7 @@ export default function DoctorRecords() {
     try {
       const params = new URLSearchParams();
       if (search.trim()) params.set('search', search.trim());
-      const res = await fetch(`/api/doctor/patients?${params.toString()}`, {
+      const res = await fetch(`${apiBaseUrl}/api/doctor/patients?${params.toString()}`, {
         headers: { Authorization: `Bearer ${session.token}` },
       });
       if (!res.ok) {
@@ -324,7 +326,7 @@ export default function DoctorRecords() {
     async (patientId: string): Promise<ConsultationRecord[]> => {
       if (!session?.token) return [];
       try {
-        const res = await fetch(`/api/doctor/patients/${patientId}/consultations`, {
+        const res = await fetch(`${apiBaseUrl}/api/doctor/patients/${patientId}/consultations`, {
           headers: { Authorization: `Bearer ${session.token}` },
         });
         if (!res.ok) return [];

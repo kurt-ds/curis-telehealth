@@ -3,6 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Curis — Smart Telehealth Platform",
+  icons: { icon: "/favicon.svg" },
   description:
     "Curis connects patients with the right doctors using AI-powered symptom analysis. Get personalised doctor recommendations instantly.",
   keywords: ["telehealth", "doctor", "AI", "health", "recommendations"],
