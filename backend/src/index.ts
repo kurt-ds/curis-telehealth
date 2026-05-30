@@ -29,6 +29,9 @@ app.use(express.json());
 
 // ── Routes ────────────────────────────────────────────────────────
 app.use("/health", healthRouter);
+app.get("/healthy", (_req, res) => {
+  res.json({ status: "ok", service: "curis-backend", ts: new Date().toISOString() });
+});
 app.use("/api/recommendations", recommendationsRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/doctors", doctorsRouter);
