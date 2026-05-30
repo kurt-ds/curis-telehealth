@@ -82,9 +82,6 @@ function buildSlots(dayOffset: number): HourSlot[] {
 }
 
 /* ─── Mock data ──────────────────────────────────────── */
-const CONSULTATIONS_TODAY = 12;
-const YESTERDAY_DIFF = 4;
-
 /* ─── Status badge ───────────────────────────────────── */
 const STATUS_STYLES: Record<QueueItem['status'], string> = {
   WAITING:   'bg-teal-100 text-teal-700',
@@ -360,24 +357,12 @@ export default function DoctorDashboard() {
             <p className="text-slate-500 text-sm md:text-base">
             {greeting}, Dr. Aris. You have{' '}
               <span className="font-semibold text-slate-700">
-              {queue.filter(q => q.status !== 'COMPLETED').length} patients
+              {queue.filter(q => q.status !== 'COMPLETED').length} consultations
               </span>{' '}
               today.
             </p>
         </div>
 
-        {/* Consultations today card */}
-        <div className="flex-shrink-0 border border-slate-200 rounded-2xl px-5 py-4 bg-white shadow-sm min-w-[140px]">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
-            Consultations Today
-          </p>
-          <div className="flex items-baseline gap-2">
-            <span className="text-4xl font-black text-slate-900">{CONSULTATIONS_TODAY}</span>
-            <span className="text-xs font-semibold text-teal-600">
-              +{YESTERDAY_DIFF} vs yesterday
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* ── Two-column body ──────────────────────────── */}

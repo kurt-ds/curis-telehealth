@@ -28,10 +28,7 @@ interface PatientData {
   emergencyPhone: string | null;
 }
 
-const DEFAULT_PAST_RX = [
-  { id: 'past-1', medication: 'Amoxicillin 500mg', frequency: 'TID', duration: '7 days', date: 'May 10, 2026' },
-  { id: 'past-2', medication: 'Ibuprofen 400mg', frequency: 'PRN', duration: '5 days', date: 'Apr 22, 2026' },
-];
+
 
 export default function ConsultationRoom() {
   const params = useParams();
@@ -42,6 +39,7 @@ export default function ConsultationRoom() {
   const [patient, setPatient] = useState<PatientData | null>(null);
   const [loading, setLoading] = useState(true);
   const [scheduledAt, setScheduledAt] = useState<string | null>(null);
+  const [pastConsultations, setPastConsultations] = useState<{ id: string; date: string; diagnosis: string | null; notes: string; prescriptions: string[] }[]>([]);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -61,6 +59,19 @@ export default function ConsultationRoom() {
         if (response.ok) {
           setPatient(data.patient);
           setScheduledAt(data.appointment.scheduledAt);
+          setDiagnosis(data.appointment.diagnosis || '');
+          setNotes(data.appointment.consultationNotes || '');
+          setPastConsultations(data.pastConsultations || []);
+          if (data.appointment.prescriptions?.length > 0) {
+            setRxList(
+              data.appointment.prescriptions.map((rx: { medication: string; frequency: string; duration: string }, i: number) => ({
+                id: String(i + 1),
+                medication: rx.medication,
+                frequency: rx.frequency,
+                duration: rx.duration,
+              })),
+            );
+          }
         }
       } catch {
         // ignore
@@ -92,9 +103,7 @@ export default function ConsultationRoom() {
   const handleNotes = (v: string) => { setNotes(v); triggerAutosave(v); };
   useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
 
-  const [rxList, setRxList] = useState<Prescription[]>([
-    { id: '1', medication: 'Amoxicillin 500mg', frequency: 'TID (3x daily)', duration: '7 Days' },
-  ]);
+  const [rxList, setRxList] = useState<Prescription[]>([]);
   const [rxErrors, setRxErrors] = useState<Record<string, string>>({});
   const addRx = () => setRxList(prev => [...prev, { id: Date.now().toString(), medication: '', frequency: '', duration: '' }]);
   const removeRx = (rxId: string) => {
@@ -280,25 +289,42 @@ export default function ConsultationRoom() {
             </div>
           )}
 
-          {/* Past Prescriptions */}
+          {/* Past Consultations */}
           <div className="bg-white border border-slate-100 rounded-2xl shadow-sm p-5">
             <div className="flex items-center gap-2 mb-4">
               <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
               </svg>
-              <h2 className="text-sm font-bold text-slate-900">Past Prescriptions</h2>
+              <h2 className="text-sm font-bold text-slate-900">Past Consultations</h2>
             </div>
-            <div className="space-y-2">
-              {DEFAULT_PAST_RX.map((rx) => (
-                <div key={rx.id} className="flex items-center justify-between border border-slate-200 rounded-xl px-4 py-3 bg-slate-50">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{rx.medication}</p>
-                    <p className="text-xs text-slate-500">{rx.frequency} &bull; {rx.duration}</p>
+            {pastConsultations.length === 0 ? (
+              <p className="text-sm text-slate-400 italic">No past consultations with this patient.</p>
+            ) : (
+              <div className="space-y-3">
+                {pastConsultations.map((pc) => (
+                  <div key={pc.id} className="border border-slate-200 rounded-xl px-4 py-3 bg-slate-50">
+                    <p className="text-xs text-slate-400 mb-1">
+                      {new Date(pc.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                    {pc.diagnosis && (
+                      <p className="text-sm font-semibold text-slate-800">{pc.diagnosis}</p>
+                    )}
+                    {pc.notes && (
+                      <p className="text-xs text-slate-600 mt-1 line-clamp-2">{pc.notes}</p>
+                    )}
+                    {pc.prescriptions.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {pc.prescriptions.map((rx) => (
+                          <span key={rx} className="text-[10px] font-medium bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-full">
+                            💊 {rx}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <span className="text-xs text-slate-400">{rx.date}</span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -406,12 +432,9 @@ export default function ConsultationRoom() {
               ) : (
                 <>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-                  Complete Consultation &amp; Sign
+                   Complete &amp; Sign
                 </>
               )}
-            </button>
-            <button className="flex-1 border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold py-3.5 rounded-xl text-sm transition-all duration-200">
-              Referral Needed
             </button>
           </div>
         </div>

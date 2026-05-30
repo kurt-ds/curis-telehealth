@@ -797,6 +797,9 @@ profileRouter.get(
               emergencyPhone: true,
             },
           },
+          prescriptions: {
+            select: { medication: true, frequency: true, duration: true },
+          },
         },
       });
 
@@ -809,6 +812,22 @@ profileRouter.get(
         ? Math.floor((Date.now() - patient.dateOfBirth.getTime()) / (365.25 * 24 * 60 * 60 * 1000))
         : null;
 
+      const pastConsultations = await prisma.appointment.findMany({
+        where: {
+          patientId: patient.id,
+          doctorId: doctor.id,
+          status: "COMPLETED",
+          id: { not: appointment.id },
+        },
+        include: {
+          prescriptions: {
+            select: { medication: true, frequency: true, duration: true },
+          },
+        },
+        orderBy: { scheduledAt: "desc" },
+        take: 10,
+      });
+
       return res.json({
         appointment: {
           id: appointment.id,
@@ -818,6 +837,7 @@ profileRouter.get(
           diagnosis: appointment.diagnosis,
           consultationNotes: appointment.consultationNotes,
           roomUrl: appointment.roomUrl,
+          prescriptions: appointment.prescriptions,
         },
         patient: {
           id: patient.id,
@@ -834,6 +854,15 @@ profileRouter.get(
           emergencyContact: patient.emergencyContact,
           emergencyPhone: patient.emergencyPhone,
         },
+        pastConsultations: pastConsultations.map((pc) => ({
+          id: pc.id,
+          date: pc.scheduledAt.toISOString(),
+          diagnosis: pc.diagnosis,
+          notes: pc.consultationNotes || "",
+          prescriptions: pc.prescriptions.map(
+            (rx) => `${rx.medication} ${rx.frequency}, ${rx.duration}`,
+          ),
+        })),
       });
     } catch (err) {
       console.error("[GET /api/doctor/appointments/:id]", err);
