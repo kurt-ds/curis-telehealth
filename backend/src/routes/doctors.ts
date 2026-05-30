@@ -69,6 +69,8 @@ doctorsRouter.get("/:id/availability", async (req: Request, res: Response) => {
   try {
     const fromParam = req.query.from ? String(req.query.from) : null;
     const toParam = req.query.to ? String(req.query.to) : null;
+    const tzOffsetParam = req.query.tzOffsetMinutes ? Number(req.query.tzOffsetMinutes) : 0;
+    const tzOffsetMinutes = Number.isNaN(tzOffsetParam) ? 0 : tzOffsetParam;
 
     const fromDate = fromParam ? new Date(fromParam) : new Date();
     fromDate.setHours(0, 0, 0, 0);
@@ -92,7 +94,53 @@ doctorsRouter.get("/:id/availability", async (req: Request, res: Response) => {
       orderBy: { date: "asc" },
     });
 
-    return res.json({ availability });
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        doctorId: req.params.id,
+        status: { in: ["UPCOMING", "COMPLETED"] },
+        scheduledAt: {
+          gte: fromDate,
+          lte: toDate,
+        },
+      },
+      select: {
+        scheduledAt: true,
+      },
+    });
+
+    const bookedByDate = new Map<string, Set<string>>();
+    for (const appointment of appointments) {
+      const localTime = new Date(appointment.scheduledAt.getTime() - tzOffsetMinutes * 60000);
+      const dateKey = `${localTime.getUTCFullYear()}-${(localTime.getUTCMonth() + 1)
+        .toString()
+        .padStart(2, "0")}-${localTime.getUTCDate().toString().padStart(2, "0")}`;
+      const hours = localTime.getUTCHours().toString().padStart(2, "0");
+      const minutes = localTime.getUTCMinutes().toString().padStart(2, "0");
+      const time = `${hours}:${minutes}`;
+      if (!bookedByDate.has(dateKey)) {
+        bookedByDate.set(dateKey, new Set());
+      }
+      bookedByDate.get(dateKey)?.add(time);
+    }
+
+    const payload = availability.map((entry) => {
+      const localDate = new Date(entry.date.getTime() - tzOffsetMinutes * 60000);
+      const dateKey = `${localDate.getUTCFullYear()}-${(localDate.getUTCMonth() + 1)
+        .toString()
+        .padStart(2, "0")}-${localDate.getUTCDate().toString().padStart(2, "0")}`;
+      const bookedTimes = Array.from(bookedByDate.get(dateKey) ?? []);
+      const slotsJson = (entry.slotsJson as { time: string; available: boolean }[]).map(
+        (slot) =>
+          bookedTimes.includes(slot.time) ? { ...slot, available: false } : slot
+      );
+
+      return {
+        date: entry.date,
+        slotsJson,
+        bookedTimes,
+      };
+    });
+    return res.json({ availability: payload });
   } catch (err) {
     console.error("[GET /api/doctors/:id/availability]", err);
     return res.status(500).json({ error: "Internal server error." });

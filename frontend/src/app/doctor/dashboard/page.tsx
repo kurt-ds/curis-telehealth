@@ -17,12 +17,14 @@ interface QueueItem {
 interface HourSlot {
   label: string;
   state: 'open' | 'restricted';
+  booked?: boolean;
 }
 
 interface AvailabilityResponse {
   availability: {
     date: string;
     slotsJson: { time: string; available: boolean }[];
+    bookedTimes?: string[];
   }[];
 }
 
@@ -193,8 +195,9 @@ export default function DoctorDashboard() {
         const fromParam = from.toLocaleDateString('en-CA');
         const toParam = to.toLocaleDateString('en-CA');
 
+        const tzOffsetMinutes = new Date().getTimezoneOffset();
         const response = await fetch(
-          `${apiBaseUrl}/api/doctor/availability/range?from=${fromParam}&to=${toParam}`,
+          `${apiBaseUrl}/api/doctor/availability/range?from=${fromParam}&to=${toParam}&tzOffsetMinutes=${tzOffsetMinutes}`,
           {
             headers: {
               Authorization: `Bearer ${session.token}`,
@@ -210,20 +213,28 @@ export default function DoctorDashboard() {
         const availabilityByDate = new Map(
           data.availability.map((item) => [
             new Date(item.date).toLocaleDateString('en-CA'),
-            item.slotsJson,
+            {
+              slots: item.slotsJson,
+              booked: new Set(item.bookedTimes ?? []),
+            },
           ])
         );
 
         const nextDaySlots = Object.fromEntries(
           dateRange.map((date, i) => {
             const key = date.toLocaleDateString('en-CA');
-            const slotsJson = availabilityByDate.get(key);
-            if (!slotsJson) {
+            const availability = availabilityByDate.get(key);
+            if (!availability) {
               return [i, buildSlots(i)];
             }
-            const mapped = slotsJson.map((slot) => ({
+            const mapped = availability.slots.map((slot) => ({
               label: slot.time,
-              state: slot.available ? 'open' : 'restricted',
+              booked: availability.booked.has(slot.time),
+              state: availability.booked.has(slot.time)
+                ? 'restricted'
+                : slot.available
+                ? 'open'
+                : 'restricted',
             }));
             return [i, mapped];
           })
@@ -365,7 +376,7 @@ export default function DoctorDashboard() {
                     <button
                       key={slot.label}
                       onClick={() => toggleSlot(slot.label)}
-                      disabled={slot.timing !== 'upcoming'}
+                      disabled={slot.timing !== 'upcoming' || slot.state === 'restricted'}
                       className={`rounded-xl py-3 px-1 flex flex-col items-center transition-all duration-200 border-2 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-teal-400 ${
                         slot.timing === 'past'
                           ? 'bg-slate-50 border-slate-100 text-slate-400'
@@ -384,7 +395,9 @@ export default function DoctorDashboard() {
                           ? 'ONGOING'
                           : slot.state === 'open'
                           ? 'OPEN'
-                          : 'RESTRICTED'}
+                          : slot.booked
+                          ? 'BOOKED'
+                          : 'UNAVAILABLE'}
                       </span>
                     </button>
                   ))}

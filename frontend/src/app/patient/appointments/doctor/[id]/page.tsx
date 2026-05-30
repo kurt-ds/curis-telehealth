@@ -23,12 +23,14 @@ interface Doctor {
 interface AvailabilityEntry {
   date: string;
   slotsJson: TimeSlot[];
+  bookedTimes?: string[];
 }
 
 interface AvailabilityDay {
   label: string;
   dateISO: string;
   slots: TimeSlot[];
+  bookedTimes?: string[];
 }
 
 interface DisplaySlot extends TimeSlot {
@@ -59,9 +61,12 @@ export default function DoctorAppointmentPage() {
         setIsLoading(true);
         setError(null);
 
+        const tzOffsetMinutes = new Date().getTimezoneOffset();
         const [doctorResponse, availabilityResponse] = await Promise.all([
           fetch(`${apiBaseUrl}/api/doctors/${doctorId}`),
-          fetch(`${apiBaseUrl}/api/doctors/${doctorId}/availability`),
+          fetch(
+            `${apiBaseUrl}/api/doctors/${doctorId}/availability?tzOffsetMinutes=${tzOffsetMinutes}`
+          ),
         ]);
 
         if (!doctorResponse.ok) {
@@ -88,10 +93,17 @@ export default function DoctorAppointmentPage() {
             month: 'short',
             day: 'numeric',
           });
+          const bookedTimes = entry.bookedTimes ?? [];
+          const bookedSet = new Set(bookedTimes);
           return {
             label,
             dateISO: entryDate.toISOString().slice(0, 10),
-            slots: Array.isArray(entry.slotsJson) ? entry.slotsJson : [],
+            bookedTimes,
+            slots: Array.isArray(entry.slotsJson)
+              ? entry.slotsJson.map((slot) =>
+                  bookedSet.has(slot.time) ? { ...slot, available: false } : slot
+                )
+              : [],
           };
         });
 
@@ -117,25 +129,32 @@ export default function DoctorAppointmentPage() {
   }, [availabilityDays, selectedDateISO]);
   const displaySlots = useMemo(() => {
     const todayISO = new Date().toISOString().slice(0, 10);
+    const bookedSet = new Set(
+      availabilityDays.find((day) => day.dateISO === selectedDateISO)?.bookedTimes ?? []
+    );
     if (selectedDateISO !== todayISO) {
-      return slots.map((slot) => ({ ...slot, timing: 'upcoming' as const }));
+      return slots.map((slot) => ({
+        ...slot,
+        timing: 'upcoming' as const,
+        booked: bookedSet.has(slot.time),
+      }));
     }
 
     const currentHour = new Date().getHours();
     return slots.map((slot) => {
       const hour = Number(slot.time.split(':')[0]);
       if (Number.isNaN(hour)) {
-        return { ...slot, timing: 'upcoming' as const };
+        return { ...slot, timing: 'upcoming' as const, booked: bookedSet.has(slot.time) };
       }
       if (hour < currentHour) {
-        return { ...slot, timing: 'past' as const };
+        return { ...slot, timing: 'past' as const, booked: bookedSet.has(slot.time) };
       }
       if (hour === currentHour) {
-        return { ...slot, timing: 'ongoing' as const };
+        return { ...slot, timing: 'ongoing' as const, booked: bookedSet.has(slot.time) };
       }
-      return { ...slot, timing: 'upcoming' as const };
+      return { ...slot, timing: 'upcoming' as const, booked: bookedSet.has(slot.time) };
     });
-  }, [selectedDateISO, slots]);
+  }, [availabilityDays, selectedDateISO, slots]);
 
   const handleConfirm = () => {
     setIsConfirming(true);
@@ -358,6 +377,11 @@ export default function DoctorAppointmentPage() {
                                 {slot.timing === 'past' ? 'Past' : 'Ongoing'}
                               </span>
                             )}
+                            {slot.timing === 'upcoming' && !slot.available && (
+                              <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide">
+                                {slot.booked ? 'Booked' : 'Unavailable'}
+                              </span>
+                            )}
                           </button>
                         ))}
                     </div>
@@ -392,6 +416,11 @@ export default function DoctorAppointmentPage() {
                             {slot.timing !== 'upcoming' && (
                               <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide">
                                 {slot.timing === 'past' ? 'Past' : 'Ongoing'}
+                              </span>
+                            )}
+                            {slot.timing === 'upcoming' && !slot.available && (
+                              <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide">
+                                {slot.booked ? 'Booked' : 'Unavailable'}
                               </span>
                             )}
                           </button>
