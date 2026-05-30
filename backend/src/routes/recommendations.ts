@@ -38,40 +38,43 @@ router.post(
           : "No doctors currently registered in the system.";
 
       // 3. Build the full prompt for Gemini
+      const allSpecialties = [...new Set(doctors.map((d) => d.specialization))].join(", ");
       const prompt = `You are Curis, an intelligent telehealth assistant.
-Your job is to review a patient's symptoms and recommend the most suitable doctor(s) from the clinic roster below.
-Be concise, empathetic, and always advise the patient to consult a licensed physician for a formal diagnosis.
+Your job is to review a patient's symptoms and recommend the most suitable doctor specialty from the list below.
+Respond ONLY with a JSON object (no markdown, no backticks) with these fields:
+- "specialty": the exact specialty name from the list that best matches the symptoms (or empty string if none match)
+- "message": a short, empathetic recommendation (1-2 sentences) starting with "Here is the doctor that fits your needs."
+
+Available specialties: ${allSpecialties}
 
 Available Doctors:
 ${doctorList}
 
 Patient symptoms: ${symptoms.trim()}
 
-Based on these symptoms, which doctor(s) from the list above would you recommend, and why?`;
+JSON response:`;
 
       // 4. Detect stub key — only block obvious placeholder values
       const key = process.env.GEMINI_API_KEY ?? "";
       const isStubKey = !key || key === "stub" || key.startsWith("your-");
 
       let recommendation: string;
+      let specialty = "";
 
       if (isStubKey) {
         // ── STUB MODE ────────────────────────────────────────────────
-        recommendation = `[STUB RESPONSE — add a real GEMINI_API_KEY to .env to get live Gemini results]
-
-Patient symptoms: "${symptoms}"
-
-Available doctors:
-${doctorList}
-
-Recommendation: Please consult with the appropriate specialist based on your symptoms.
-If symptoms are severe or worsening, seek emergency care immediately.`;
+        const stubSpecialties = ["General Practitioner", "Cardiologist", "Dermatologist", "Neurologist"];
+        specialty = stubSpecialties[Math.floor(Math.random() * stubSpecialties.length)];
+        recommendation = `Here is the doctor that fits your needs. Based on your symptoms, a ${specialty} would be the most appropriate specialist to consult.`;
       } else {
         // ── LIVE MODE — Gemini ────────────────────────────────────────
         try {
           const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
           const result = await model.generateContent(prompt);
-          recommendation = result.response.text();
+          const text = result.response.text().trim();
+          const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+          specialty = parsed.specialty || "";
+          recommendation = parsed.message || "Here is the doctor that fits your needs.";
         } catch (llmErr: unknown) {
           const msg = llmErr instanceof Error ? llmErr.message : String(llmErr);
           console.error("[Gemini API Error]", msg);
@@ -86,6 +89,7 @@ If symptoms are severe or worsening, seek emergency care immediately.`;
 
       res.json({
         recommendation,
+        specialty,
         doctorsConsulted: doctors.length,
         symptoms: symptoms.trim(),
         model: isStubKey ? "stub" : "gemini-2.5-flash",

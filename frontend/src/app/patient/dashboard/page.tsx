@@ -12,6 +12,7 @@ interface Doctor {
 
 interface AIRecommendation {
   recommendation: string;
+  specialty: string;
   doctorsConsulted: number;
   symptoms: string;
   model: string;
@@ -25,6 +26,8 @@ export default function PatientDashboard() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [isLoadingDoctors, setIsLoadingDoctors] = useState(true);
   const [doctorsError, setDoctorsError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [specialtyFilter, setSpecialtyFilter] = useState('');
 
   useEffect(() => {
     const fetchDoctors = async () => {
@@ -99,17 +102,17 @@ export default function PatientDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column: AI Symptom Checker & Emergency Contact */}
         <div className="lg:col-span-1 space-y-6">
-          {/* AI Symptom Checker */}
+          {/* AI Recommender */}
           <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
             <div className="flex items-center gap-2 mb-4">
               <svg className="w-5 h-5 text-cyan-600" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
               </svg>
-              <h3 className="text-lg font-semibold text-slate-900">AI Symptom Checker</h3>
+              <h3 className="text-lg font-semibold text-slate-900">AI Doctor Recommender</h3>
             </div>
 
             <p className="text-sm text-slate-600 mb-4">
-              Describe how you're feeling in detail to receive an AI-assisted analysis of potential concerns.
+              Describe your symptoms and we'll recommend the right specialist for you.
             </p>
 
             <textarea
@@ -135,7 +138,7 @@ export default function PatientDashboard() {
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 9.5c0 .83-.67 1.5-1.5 1.5S11 13.33 11 12.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5z" />
                   </svg>
-                  Analyze with AI
+                  Get Recommendation
                 </>
               )}
             </button>
@@ -161,12 +164,9 @@ export default function PatientDashboard() {
                   <svg className="w-5 h-5 text-cyan-600" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
                   </svg>
-                  <p className="text-sm font-semibold text-cyan-900">AI Analysis Complete</p>
+                  <p className="text-sm font-semibold text-cyan-900">Recommendation</p>
                 </div>
                 <p className="text-sm text-cyan-800 whitespace-pre-wrap mb-3">{aiResult.recommendation}</p>
-                <p className="text-xs text-cyan-700">
-                  Analyzed across {aiResult.doctorsConsulted} available doctor{aiResult.doctorsConsulted !== 1 ? 's' : ''}
-                </p>
               </div>
             )}
 
@@ -189,7 +189,7 @@ export default function PatientDashboard() {
         <div className="lg:col-span-2">
           <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-black text-slate-900">Doctor Directory</h2>
               <div className="flex items-center gap-2">
                 <div className="relative hidden md:block">
@@ -199,78 +199,138 @@ export default function PatientDashboard() {
                   <input
                     type="text"
                     placeholder="Search doctors..."
-                    className="w-56 pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-48 pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   />
                 </div>
-                <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors duration-200">
-                  <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                  </svg>
-                </button>
+                <select
+                  value={specialtyFilter}
+                  onChange={(e) => setSpecialtyFilter(e.target.value)}
+                  className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                >
+                  <option value="">All Specialties</option>
+                  {[...new Set(doctors.map((d) => d.specialty))].map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            {/* Doctors Grid */}
-            {isLoadingDoctors ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {Array.from({ length: 4 }).map((_, index) => (
-                  <div key={index} className="border border-slate-100 rounded-2xl p-4 animate-pulse">
-                    <div className="flex items-start gap-3 mb-3">
-                      <div className="w-16 h-16 rounded-full bg-slate-100" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-4 bg-slate-100 rounded w-3/4" />
-                        <div className="h-3 bg-slate-100 rounded w-1/2" />
-                      </div>
-                    </div>
-                    <div className="h-9 bg-slate-100 rounded-xl" />
-                  </div>
-                ))}
-              </div>
-            ) : doctorsError ? (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                {doctorsError}
-              </div>
-            ) : doctors.length === 0 ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                No available doctors found right now.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {doctors.map((doctor) => (
-                  <div key={doctor.id} className="border border-slate-100 rounded-2xl p-4 hover:shadow-md transition-all duration-200">
-                    <div className="flex items-start gap-3 mb-3">
-                      {doctor.image ? (
-                        <img
-                          src={doctor.image}
-                          alt={doctor.name}
-                          className="w-16 h-16 rounded-full object-cover flex-shrink-0"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div
-                          className="w-16 h-16 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-lg"
-                          style={{ background: `hsl(${(doctor.id.charCodeAt(0) * 40) % 360}, 50%, 45%)` }}
-                        >
-                          {doctor.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
-                        </div>
-                      )}
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-slate-900">{doctor.name}</h3>
-                        <p className="text-xs font-medium text-cyan-600 bg-cyan-50 inline-block px-2 py-1 rounded-full mt-1">
-                          {doctor.specialty}
-                        </p>
-                      </div>
-                    </div>
-
-                    <Link href={`/patient/appointments/doctor/${doctor.id}`}>
-                      <button className="w-full px-4 py-2 border border-cyan-600 text-cyan-600 hover:bg-cyan-50 font-semibold rounded-xl transition-all duration-200">
-                        View Slot Schedule
-                      </button>
-                    </Link>
-                  </div>
-                ))}
+            {/* Active filter badge */}
+            {aiResult?.specialty && (
+              <div className="mb-4 flex items-center gap-2">
+                <span className="text-xs font-semibold text-cyan-700 bg-cyan-50 border border-cyan-200 px-3 py-1.5 rounded-full">
+                  Recommended: {aiResult.specialty}
+                </span>
+                <button
+                  onClick={() => setAIResult((prev) => prev ? { ...prev, specialty: '' } : null)}
+                  className="text-xs text-slate-400 hover:text-slate-600 underline"
+                >
+                  Clear filter
+                </button>
               </div>
             )}
+
+            {/* Doctors Grid */}
+            {(() => {
+              const filtered = doctors.filter((d) => {
+                const matchesSearch = !searchQuery.trim() ||
+                  d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  d.specialty.toLowerCase().includes(searchQuery.toLowerCase());
+                const matchesAiSpecialty = !aiResult?.specialty ||
+                  d.specialty.toLowerCase() === aiResult.specialty.toLowerCase();
+                const matchesDropdown = !specialtyFilter ||
+                  d.specialty === specialtyFilter;
+                return matchesSearch && matchesAiSpecialty && matchesDropdown;
+              });
+
+              const recommendedIds = aiResult?.specialty
+                ? new Set(doctors.filter((d) => d.specialty.toLowerCase() === aiResult.specialty.toLowerCase()).map((d) => d.id))
+                : new Set<string>();
+
+              return (
+                <>
+                  {isLoadingDoctors ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {Array.from({ length: 4 }).map((_, index) => (
+                        <div key={index} className="border border-slate-100 rounded-2xl p-4 animate-pulse">
+                          <div className="flex items-start gap-3 mb-3">
+                            <div className="w-16 h-16 rounded-full bg-slate-100" />
+                            <div className="flex-1 space-y-2">
+                              <div className="h-4 bg-slate-100 rounded w-3/4" />
+                              <div className="h-3 bg-slate-100 rounded w-1/2" />
+                            </div>
+                          </div>
+                          <div className="h-9 bg-slate-100 rounded-xl" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : doctorsError ? (
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                      {doctorsError}
+                    </div>
+                  ) : filtered.length === 0 ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                      {aiResult?.specialty
+                        ? `No ${aiResult.specialty} specialists available right now.`
+                        : 'No available doctors found right now.'}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {filtered.map((doctor) => {
+                        const isRecommended = recommendedIds.has(doctor.id);
+                        return (
+                          <div
+                            key={doctor.id}
+                            className={`border rounded-2xl p-4 hover:shadow-md transition-all duration-200 ${
+                              isRecommended ? 'border-cyan-400 ring-1 ring-cyan-300 bg-cyan-50/30' : 'border-slate-100'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3 mb-3">
+                              {doctor.image ? (
+                                <img
+                                  src={doctor.image}
+                                  alt={doctor.name}
+                                  className="w-16 h-16 rounded-full object-cover flex-shrink-0"
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <div
+                                  className="w-16 h-16 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-lg"
+                                  style={{ background: `hsl(${(doctor.id.charCodeAt(0) * 40) % 360}, 50%, 45%)` }}
+                                >
+                                  {doctor.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                                </div>
+                              )}
+                              <div className="flex-1">
+                                <h3 className="font-semibold text-slate-900">{doctor.name}</h3>
+                                <p className={`text-xs font-medium inline-block px-2 py-1 rounded-full mt-1 ${
+                                  isRecommended
+                                    ? 'text-cyan-700 bg-cyan-100'
+                                    : 'text-cyan-600 bg-cyan-50'
+                                }`}>
+                                  {doctor.specialty}
+                                </p>
+                                {isRecommended && (
+                                  <span className="text-[10px] font-bold text-cyan-600 ml-2">Recommended</span>
+                                )}
+                              </div>
+                            </div>
+
+                            <Link href={`/patient/appointments/doctor/${doctor.id}`}>
+                              <button className="w-full px-4 py-2 border border-cyan-600 text-cyan-600 hover:bg-cyan-50 font-semibold rounded-xl transition-all duration-200">
+                                View Slot Schedule
+                              </button>
+                            </Link>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             {/* Backend Implementation Comment */}
             {/* 
