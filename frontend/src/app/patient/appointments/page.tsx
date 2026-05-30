@@ -267,7 +267,8 @@ export default function PatientAppointments() {
     const selectedDay = availabilityDays.find((day) => day.dateISO === rescheduleData.selectedDate);
     if (!selectedDay) return [];
 
-    const todayISO = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const todayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     if (selectedDay.dateISO !== todayISO) {
       return selectedDay.slots.map((slot) => ({ ...slot, timing: 'upcoming' as const }));
     }
@@ -320,7 +321,7 @@ export default function PatientAppointments() {
           );
           return {
             label,
-            dateISO: entryDate.toISOString().slice(0, 10),
+            dateISO: `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, "0")}-${String(entryDate.getDate()).padStart(2, "0")}`,
             slots,
           };
         });

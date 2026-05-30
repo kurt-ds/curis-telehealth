@@ -101,7 +101,7 @@ export default function DoctorAppointmentPage() {
           const bookedSet = new Set(bookedTimes);
           return {
             label,
-            dateISO: entryDate.toISOString().slice(0, 10),
+            dateISO: `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, "0")}-${String(entryDate.getDate()).padStart(2, "0")}`,
             bookedTimes,
             slots: Array.isArray(entry.slotsJson)
               ? entry.slotsJson.map((slot) =>
@@ -132,7 +132,8 @@ export default function DoctorAppointmentPage() {
     return availabilityDays.find((day) => day.dateISO === selectedDateISO)?.slots ?? [];
   }, [availabilityDays, selectedDateISO]);
   const displaySlots = useMemo(() => {
-    const todayISO = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const todayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     const bookedSet = new Set(
       availabilityDays.find((day) => day.dateISO === selectedDateISO)?.bookedTimes ?? []
     );
@@ -198,6 +199,7 @@ export default function DoctorAppointmentPage() {
             day.dateISO === selected.dateISO
               ? {
                   ...day,
+                  bookedTimes: [...(day.bookedTimes ?? []), selectedTime],
                   slots: day.slots.map((slot) =>
                     slot.time === selectedTime ? { ...slot, available: false } : slot
                   ),
