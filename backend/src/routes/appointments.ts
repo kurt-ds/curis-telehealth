@@ -115,7 +115,7 @@ appointmentsRouter.post(
         return res.status(409).json({ error: "Selected time slot is unavailable." });
       }
 
-      const existingAppointment = await prisma.appointment.findFirst({
+      const existingDoctorAppointment = await prisma.appointment.findFirst({
         where: {
           doctorId,
           scheduledAt: scheduledDate,
@@ -124,8 +124,21 @@ appointmentsRouter.post(
         select: { id: true },
       });
 
-      if (existingAppointment) {
+      if (existingDoctorAppointment) {
         return res.status(409).json({ error: "Selected time slot is already booked." });
+      }
+
+      const existingPatientAppointment = await prisma.appointment.findFirst({
+        where: {
+          patientId: patient.id,
+          scheduledAt: scheduledDate,
+          status: "UPCOMING",
+        },
+        select: { id: true },
+      });
+
+      if (existingPatientAppointment) {
+        return res.status(409).json({ error: "You already have an appointment at this time." });
       }
 
       const appointment = await prisma.$transaction(async (tx) => {
