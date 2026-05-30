@@ -959,6 +959,74 @@ profileRouter.patch(
   }
 );
 
+/* ─── Patient Records ──────────────────────────────────────────── */
+profileRouter.get(
+  "/patient/records",
+  requireAuth,
+  requireRole("PATIENT"),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const patient = await prisma.patient.findUnique({
+        where: { userId: req.user?.sub ?? "" },
+      });
+
+      if (!patient) {
+        return res.status(404).json({ error: "Patient profile not found." });
+      }
+
+      const appointments = await prisma.appointment.findMany({
+        where: { patientId: patient.id, status: "COMPLETED" },
+        include: {
+          doctor: { select: { name: true, specialization: true } },
+          prescriptions: {
+            select: { medication: true, frequency: true, duration: true },
+          },
+        },
+        orderBy: { scheduledAt: "desc" },
+      });
+
+      const name = `${patient.firstName} ${patient.lastName}`.trim();
+      const age = patient.dateOfBirth
+        ? Math.floor(
+            (Date.now() - patient.dateOfBirth.getTime()) /
+              (365.25 * 24 * 60 * 60 * 1000),
+          )
+        : null;
+      const allergies = patient.allergies
+        ? patient.allergies.split(",").map((a) => a.trim()).filter(Boolean)
+        : [];
+
+      const consultations = appointments.map((a) => ({
+        id: a.id,
+        date: a.scheduledAt.toISOString(),
+        doctorName: `Dr. ${a.doctor.name}`,
+        specialty: a.doctor.specialization,
+        diagnosis: a.diagnosis,
+        clinicalNotes: a.consultationNotes || "",
+        prescriptions: a.prescriptions.map(
+          (rx) => `${rx.medication} ${rx.frequency}, ${rx.duration}`,
+        ),
+      }));
+
+      return res.json({
+        patient: {
+          name,
+          age,
+          gender: patient.gender,
+          bloodType: patient.bloodType,
+          height: patient.height,
+          weight: patient.weight,
+          allergies,
+        },
+        consultations,
+      });
+    } catch (err) {
+      console.error("[GET /api/patient/records]", err);
+      return res.status(500).json({ error: "Internal server error." });
+    }
+  },
+);
+
 /* ─── Doctor Patients List ────────────────────────────────────── */
 profileRouter.get(
   "/doctor/patients",
