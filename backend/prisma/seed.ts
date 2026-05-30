@@ -21,8 +21,18 @@ function manilaDate(
   return new Date(Date.UTC(year, month, day, hour - MANILA_OFFSET, minute));
 }
 
-async function main() {
-  console.log("🌱  Seeding database...");
+export async function main() {
+  console.log("🌱  Resetting and seeding database...");
+
+  // Clear all tables in dependency order
+  await prisma.prescription.deleteMany();
+  await prisma.notification.deleteMany();
+  await prisma.appointment.deleteMany();
+  await prisma.doctorAvailability.deleteMany();
+  await prisma.doctor.deleteMany();
+  await prisma.patient.deleteMany();
+  await prisma.user.deleteMany();
+  console.log("  ✅  Tables cleared.");
 
   const doctorPassword = await bcrypt.hash("doctor123", 12);
   const patientPassword = await bcrypt.hash("patient123", 12);
