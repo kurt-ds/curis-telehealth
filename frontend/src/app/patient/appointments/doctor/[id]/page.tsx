@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from '@/hooks/useSession';
 import { useToast } from '@/components/ToastProvider';
@@ -40,6 +40,7 @@ interface DisplaySlot extends TimeSlot {
 
 export default function DoctorAppointmentPage() {
   const params = useParams();
+  const router = useRouter();
   const doctorId = params.id as string;
   const session = useSession();
   const [doctor, setDoctor] = useState<Doctor | null>(null);
@@ -211,6 +212,7 @@ export default function DoctorAppointmentPage() {
           description: `You are booked for ${selected.label} at ${selectedTime}.`,
           variant: 'success',
         });
+        router.push('/patient/appointments');
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to book appointment';
         setBookingError(message);
