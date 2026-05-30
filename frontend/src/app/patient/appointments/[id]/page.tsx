@@ -48,7 +48,7 @@ export default function PatientAppointmentSession() {
     { id: '3', label: 'Stable internet connection', status: 'complete' },
   ];
 
-  const zoomJoinUrl = 'https://zoom.us/j/1234567890';
+  const jitsiJoinUrl = 'https://meet.jit.si/curis-telehealth';
 
   const isInSession = now >= sessionStart && now <= sessionEnd;
   const isSessionUpcoming = now < sessionStart;
@@ -198,15 +198,23 @@ export default function PatientAppointmentSession() {
           </div>
 
           <a
-            href={zoomJoinUrl}
+            href={jitsiJoinUrl}
+
             target="_blank"
-            rel="noreferrer"
-            className="flex items-center justify-center gap-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3 rounded-xl transition-colors duration-200"
+
+            rel="noopener noreferrer"
+
+            className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-bold text-white bg-teal-600 hover:bg-teal-700 hover:shadow-lg active:scale-[0.98] transition-all duration-150 text-lg"
+
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 6h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z" />
+
             </svg>
-            Join Zoom Consultation
+
+            Join Video Consultation
           </a>
 
           <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">

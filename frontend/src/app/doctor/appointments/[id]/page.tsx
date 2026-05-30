@@ -90,6 +90,7 @@ export default function ConsultationRoom() {
     setRxList(prev => prev.map(r => r.id === rxId ? { ...r, [field]: val } : r));
 
   /* Complete consultation */
+  const JITSI_URL = 'https://meet.jit.si/curis-telehealth';
   const [completing, setCompleting] = useState(false);
   const completeConsultation = async () => {
     setCompleting(true);
@@ -129,12 +130,17 @@ export default function ConsultationRoom() {
             </div>
             <h2 className="relative text-xl font-black text-white mb-1">Ready to Connect</h2>
             <p className="relative text-sm text-slate-300 mb-6">Patient {patient.name} is waiting in the lobby.</p>
-            <button className="relative flex items-center gap-2 bg-teal-600 hover:bg-teal-500 text-white font-bold text-sm px-6 py-3 rounded-xl shadow transition-all duration-200 hover:shadow-lg">
+            <a
+              href={JITSI_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="relative flex items-center gap-2 bg-teal-600 hover:bg-teal-500 text-white font-bold text-sm px-6 py-3 rounded-xl shadow transition-all duration-200 hover:shadow-lg"
+            >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.268A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
               </svg>
-              Launch Zoom Application
-            </button>
+              Launch Video Consultation
+            </a>
           </div>
 
           {/* Patient summary card */}

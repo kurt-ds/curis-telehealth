@@ -10,9 +10,19 @@ interface QueueItem {
   name: string;
   time: string;
   type: string;
-  status: 'WAITING' | 'SCHEDULED' | 'COMPLETED';
+  status: 'WAITING' | 'SCHEDULED' | 'COMPLETED' | 'ONGOING';
   initials: string;
   avatarColor: string;
+}
+
+interface QueueResponse {
+  items: {
+    id: string;
+    patientName: string;
+    scheduledAt: string;
+    type: string;
+    status: 'UPCOMING' | 'COMPLETED' | 'CANCELLED';
+  }[];
 }
 
 interface HourSlot {
@@ -71,13 +81,6 @@ function buildSlots(dayOffset: number): HourSlot[] {
 }
 
 /* ─── Mock data ──────────────────────────────────────── */
-const INITIAL_QUEUE: QueueItem[] = [
-  { id: '1', name: 'Elena Rodriguez', time: '09:00 AM', type: 'Follow-up',     status: 'WAITING',   initials: 'ER', avatarColor: '#4a9d8f' },
-  { id: '2', name: 'Samuel Chen',     time: '09:45 AM', type: 'Tele-consult',  status: 'SCHEDULED', initials: 'SC', avatarColor: '#5b8dd9' },
-  { id: '3', name: 'Miriam Thompson', time: '08:15 AM', type: 'Prescription',  status: 'COMPLETED', initials: 'MT', avatarColor: '#9b9b9b' },
-  { id: '4', name: 'Marcus Vane',     time: '11:00 AM', type: 'Routine Check', status: 'SCHEDULED', initials: 'MV', avatarColor: '#c0784b' },
-];
-
 const CONSULTATIONS_TODAY = 12;
 const YESTERDAY_DIFF = 4;
 
@@ -85,6 +88,7 @@ const YESTERDAY_DIFF = 4;
 const STATUS_STYLES: Record<QueueItem['status'], string> = {
   WAITING:   'bg-teal-100 text-teal-700',
   SCHEDULED: 'bg-slate-100 text-slate-600',
+  ONGOING:   'bg-amber-100 text-amber-700',
   COMPLETED: 'bg-slate-100 text-slate-400',
 };
 
@@ -113,7 +117,9 @@ export default function DoctorDashboard() {
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [isAvailabilitySaving, setIsAvailabilitySaving] = useState(false);
   const [savedDay, setSavedDay] = useState<number | null>(null);
-  const [queue] = useState<QueueItem[]>(INITIAL_QUEUE);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [isQueueLoading, setIsQueueLoading] = useState(true);
+  const [queueError, setQueueError] = useState<string | null>(null);
 
   const slots = daySlots[selectedDayIndex] ?? [];
   const selectedDate = dateRange[selectedDayIndex];
@@ -259,6 +265,85 @@ export default function DoctorDashboard() {
     fetchAvailability();
   }, [dateRange, session?.token]);
 
+  useEffect(() => {
+    const fetchQueue = async () => {
+      if (!session?.token) {
+        setIsQueueLoading(false);
+        setQueueError(null);
+        return;
+      }
+
+      try {
+        setIsQueueLoading(true);
+        setQueueError(null);
+
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+        const todayParam = new Date().toLocaleDateString('en-CA');
+        const response = await fetch(
+          `${apiBaseUrl}/api/doctor/queue?date=${todayParam}`,
+          {
+            headers: {
+              Authorization: `Bearer ${session.token}`,
+            },
+          }
+        );
+
+        const data = (await response.json()) as QueueResponse;
+        if (!response.ok) {
+          throw new Error((data as { error?: string }).error || 'Failed to load queue');
+        }
+
+        const now = new Date();
+        const items = data.items.map((item) => {
+          const scheduled = new Date(item.scheduledAt);
+          const localScheduled = new Date(
+            scheduled.getTime() - now.getTimezoneOffset() * 60000
+          );
+          const time = scheduled.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+          });
+          const isOngoing =
+            localScheduled.getUTCFullYear() === now.getFullYear() &&
+            localScheduled.getUTCMonth() === now.getMonth() &&
+            localScheduled.getUTCDate() === now.getDate() &&
+            localScheduled.getUTCHours() === now.getHours();
+          const initials = item.patientName
+            .split(' ')
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase() ?? '')
+            .join('');
+          const colorSeed = item.patientName.charCodeAt(0) || 0;
+          const avatarColor = `hsl(${(colorSeed * 37) % 360}, 45%, 55%)`;
+          return {
+            id: item.id,
+            name: item.patientName,
+            time,
+            type: item.type,
+            status:
+              item.status === 'COMPLETED'
+                ? 'COMPLETED'
+                : isOngoing
+                ? 'ONGOING'
+                : 'SCHEDULED',
+            initials,
+            avatarColor,
+          } as QueueItem;
+        });
+
+        setQueue(items);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load queue';
+        setQueueError(message);
+      } finally {
+        setIsQueueLoading(false);
+      }
+    };
+
+    fetchQueue();
+  }, [session?.token]);
+
   return (
     <div className="p-4 md:p-8 max-w-7xl">
       {/* ── Hero header ─────────────────────────────── */}
@@ -267,13 +352,13 @@ export default function DoctorDashboard() {
           <h1 className="text-3xl md:text-4xl font-black text-slate-900 mb-1">
             Doctor&apos;s Cockpit
           </h1>
-          <p className="text-slate-500 text-sm md:text-base">
+            <p className="text-slate-500 text-sm md:text-base">
             {greeting}, Dr. Aris. You have{' '}
-            <span className="font-semibold text-slate-700">
+              <span className="font-semibold text-slate-700">
               {queue.filter(q => q.status !== 'COMPLETED').length} patients
-            </span>{' '}
-            today.
-          </p>
+              </span>{' '}
+              today.
+            </p>
         </div>
 
         {/* Consultations today card */}
@@ -439,36 +524,59 @@ export default function DoctorDashboard() {
           </div>
 
           {/* Queue list */}
-          <div className="flex flex-col divide-y divide-slate-100">
-            {queue.map((item, idx) => (
-              <div
-                key={item.id}
-                className={`flex items-center gap-4 py-3 ${
-                  idx === 0 ? 'border-l-4 border-teal-500 pl-3 -ml-3 rounded-l-sm' : ''
-                }`}
-              >
-                {/* Avatar */}
+          {isQueueLoading ? (
+            <div className="flex flex-col gap-3">
+              {Array.from({ length: 3 }).map((_, idx) => (
+                <div key={`queue-skeleton-${idx}`} className="flex items-center gap-4 py-3 animate-pulse">
+                  <div className="w-10 h-10 rounded-full bg-slate-100" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 bg-slate-100 rounded w-1/2" />
+                    <div className="h-3 bg-slate-100 rounded w-1/3" />
+                  </div>
+                  <div className="h-4 w-12 bg-slate-100 rounded-full" />
+                </div>
+              ))}
+            </div>
+          ) : queueError ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              {queueError}
+            </div>
+          ) : queue.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              No appointments scheduled for today.
+            </div>
+          ) : (
+            <div className="flex flex-col divide-y divide-slate-100">
+              {queue.map((item, idx) => (
                 <div
-                  className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold"
-                  style={{ backgroundColor: item.avatarColor }}
+                  key={item.id}
+                  className={`flex items-center gap-4 py-3 ${
+                    idx === 0 ? 'border-l-4 border-teal-500 pl-3 -ml-3 rounded-l-sm' : ''
+                  }`}
                 >
-                  {item.initials}
-                </div>
+                  {/* Avatar */}
+                  <div
+                    className="w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold"
+                    style={{ backgroundColor: item.avatarColor }}
+                  >
+                    {item.initials}
+                  </div>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-semibold truncate ${item.status === 'COMPLETED' ? 'text-slate-400' : 'text-slate-800'}`}>
-                    {item.name}
-                  </p>
-                  <p className="text-xs text-slate-400 truncate">
-                    {item.time} &bull; {item.type}
-                  </p>
-                </div>
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-semibold truncate ${item.status === 'COMPLETED' ? 'text-slate-400' : 'text-slate-800'}`}>
+                      {item.name}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate">
+                      {item.time} &bull; {item.type}
+                    </p>
+                  </div>
 
-                <StatusBadge status={item.status} />
-              </div>
-            ))}
-          </div>
+                  <StatusBadge status={item.status} />
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* CTA */}
           <button className="mt-2 w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white py-3.5 rounded-xl text-sm font-bold transition-all duration-200 shadow-sm hover:shadow-md">

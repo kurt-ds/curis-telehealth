@@ -384,9 +384,14 @@ export default function DoctorAppointmentPage() {
                                 {slot.timing === 'past' ? 'Past' : 'Ongoing'}
                               </span>
                             )}
-                            {slot.timing === 'upcoming' && !slot.available && (
+                            {slot.booked && (
                               <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide">
-                                {slot.booked ? 'Booked' : 'Unavailable'}
+                                Booked
+                              </span>
+                            )}
+                            {!slot.available && !slot.booked && (
+                              <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide">
+                                Unavailable
                               </span>
                             )}
                           </button>
@@ -425,9 +430,14 @@ export default function DoctorAppointmentPage() {
                                 {slot.timing === 'past' ? 'Past' : 'Ongoing'}
                               </span>
                             )}
-                            {slot.timing === 'upcoming' && !slot.available && (
+                            {slot.booked && (
                               <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide">
-                                {slot.booked ? 'Booked' : 'Unavailable'}
+                                Booked
+                              </span>
+                            )}
+                            {!slot.available && !slot.booked && (
+                              <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide">
+                                Unavailable
                               </span>
                             )}
                           </button>

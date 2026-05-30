@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSession } from '@/hooks/useSession';
+import { useToast } from '@/components/ToastProvider';
 
 interface Appointment {
   id: string;
@@ -13,6 +14,7 @@ interface Appointment {
   time: string;
   status: 'scheduled' | 'completed' | 'cancelled';
   reason?: string;
+  roomUrl?: string | null;
 }
 
 interface AppointmentResponse {
@@ -22,11 +24,24 @@ interface AppointmentResponse {
   scheduledAt: string;
   status: 'UPCOMING' | 'COMPLETED' | 'CANCELLED';
   reason: string | null;
+  roomUrl?: string | null;
   doctor: {
     id: string;
     name: string;
     specialization: string;
   };
+}
+
+interface AvailabilityEntry {
+  date: string;
+  slotsJson: TimeSlot[];
+  bookedTimes?: string[];
+}
+
+interface AvailabilityDay {
+  label: string;
+  dateISO: string;
+  slots: TimeSlot[];
 }
 
 interface TimeSlot {
@@ -55,6 +70,7 @@ export default function PatientAppointments() {
   const [cancelReason, setCancelReason] = useState('');
   const [isRescheduleLoading, setIsRescheduleLoading] = useState(false);
   const [isCancelLoading, setIsCancelLoading] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const fetchAppointments = async () => {
@@ -102,6 +118,7 @@ export default function PatientAppointments() {
               }),
               status,
               reason: appointment.reason ?? undefined,
+              roomUrl: appointment.roomUrl || null,
             };
           }
         );
@@ -118,20 +135,8 @@ export default function PatientAppointments() {
     fetchAppointments();
   }, [session?.token]);
 
-  // Sample dates for reschedule modal
-  const dates = ['Monday, Oct 24', 'Tuesday, Oct 25', 'Wednesday, Oct 26', 'Thursday, Oct 27', 'Friday, Oct 28', 'Saturday, Oct 29', 'Sunday, Oct 30'];
-  
-  // Sample time slots
-  const timeSlots: TimeSlot[] = [
-    { time: '9:00 AM', available: true },
-    { time: '9:30 AM', available: true },
-    { time: '10:30 AM', available: false },
-    { time: '11:15 AM', available: true },
-    { time: '2:00 PM', available: true },
-    { time: '2:30 PM', available: true },
-    { time: '3:30 PM', available: true },
-    { time: '4:00 PM', available: false },
-  ];
+  const [availabilityDays, setAvailabilityDays] = useState<AvailabilityDay[]>([]);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
 
   const handleCancelClick = (appointmentId: string) => {
     setCancelingAppointment(appointmentId);
@@ -139,77 +144,93 @@ export default function PatientAppointments() {
   };
 
   const handleCancelConfirm = async () => {
-    if (!cancelingAppointment) return;
+    if (!cancelingAppointment || !session?.token) return;
 
     setIsCancelLoading(true);
 
-    // TODO: Backend Implementation for Cancel Appointment
-    // 1. DELETE /api/appointments/{appointmentId}
-    // 2. Optional: POST /api/appointments/{appointmentId}/cancel with reason
-    // 3. Request body (if using POST):
-    //    {
-    //      reason: string (optional),
-    //      notes: string (optional)
-    //    }
-    // 4. Validate:
-    //    - Appointment exists
-    //    - User is authorized to cancel (patient/doctor match)
-    //    - Appointment is not already completed
-    //    - Appointment is not too close to cancel (e.g., < 24 hours)
-    // 5. Update appointment status to 'cancelled'
-    // 6. Send cancellation email to both patient and doctor
-    // 7. Free up the time slot for the doctor
-    // 8. Refund any prepaid fees if applicable
-    // 9. Return confirmation with cancellation reference ID
-    // 10. Add cancellation to activity/audit log
+    try {
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const response = await fetch(
+        `${apiBaseUrl}/api/appointments/${cancelingAppointment}/cancel`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            reason: cancelReason.trim() || undefined,
+            timezoneOffsetMinutes: new Date().getTimezoneOffset(),
+          }),
+        }
+      );
 
-    setTimeout(() => {
-      setIsCancelLoading(false);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cancel appointment');
+      }
+
       setAppointments((prev) =>
         prev.map((app) =>
           app.id === cancelingAppointment ? { ...app, status: 'cancelled' } : app
         )
       );
+      showToast({
+        title: 'Appointment cancelled',
+        description: 'The appointment has been cancelled.',
+        variant: 'success',
+      });
       setCancelingAppointment(null);
       setShowCancelConfirm(false);
       setCancelReason('');
-    }, 1500);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to cancel appointment';
+      setError(message);
+      showToast({
+        title: 'Cancellation failed',
+        description: message,
+        variant: 'error',
+      });
+    } finally {
+      setIsCancelLoading(false);
+    }
   };
 
   const handleRescheduleClick = (appointmentId: string) => {
     setReschedulingAppointment(appointmentId);
-    setRescheduleData({ selectedDate: dates[0], selectedTime: '' });
+    setRescheduleData({ selectedDate: '', selectedTime: '' });
+    setAvailabilityDays([]);
+    setAvailabilityError(null);
   };
 
   const handleRescheduleConfirm = async () => {
-    if (!reschedulingAppointment || !rescheduleData.selectedDate || !rescheduleData.selectedTime) return;
+    if (!reschedulingAppointment || !rescheduleData.selectedDate || !rescheduleData.selectedTime || !session?.token) return;
 
     setIsRescheduleLoading(true);
 
-    // TODO: Backend Implementation for Reschedule Appointment
-    // 1. PUT /api/appointments/{appointmentId} or POST /api/appointments/{appointmentId}/reschedule
-    // 2. Request body:
-    //    {
-    //      newDate: string (ISO format),
-    //      newTime: string,
-    //      reason: string (optional, why rescheduling)
-    //    }
-    // 3. Validate:
-    //    - Appointment exists and is not completed
-    //    - New time slot is available
-    //    - Doctor is available at new time
-    //    - Appointment is not too close to reschedule (e.g., < 24 hours)
-    //    - Patient doesn't have conflicting appointments
-    // 4. Update appointment with new date/time
-    // 5. Free up the old time slot for the doctor
-    // 6. Send rescheduling confirmation email to patient
-    // 7. Send reschedule notification to doctor
-    // 8. Update calendar/notification system
-    // 9. Return updated appointment with confirmation
-    // 10. Handle conflicts (slot taken between request and confirmation)
+    try {
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const response = await fetch(
+        `${apiBaseUrl}/api/appointments/${reschedulingAppointment}/reschedule`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            newDate: rescheduleData.selectedDate,
+            newTime: rescheduleData.selectedTime,
+            timezoneOffsetMinutes: new Date().getTimezoneOffset(),
+          }),
+        }
+      );
 
-    setTimeout(() => {
-      setIsRescheduleLoading(false);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to reschedule appointment');
+      }
+
       setAppointments((prev) =>
         prev.map((app) =>
           app.id === reschedulingAppointment
@@ -217,10 +238,102 @@ export default function PatientAppointments() {
             : app
         )
       );
+      showToast({
+        title: 'Appointment rescheduled',
+        description: 'Your appointment has been updated.',
+        variant: 'success',
+      });
       setReschedulingAppointment(null);
       setRescheduleData({ selectedDate: '', selectedTime: '' });
-    }, 1500);
+      setAvailabilityDays([]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to reschedule appointment';
+      setError(message);
+      showToast({
+        title: 'Reschedule failed',
+        description: message,
+        variant: 'error',
+      });
+    } finally {
+      setIsRescheduleLoading(false);
+    }
   };
+
+  const rescheduleSlots = useMemo(() => {
+    const selectedDay = availabilityDays.find((day) => day.dateISO === rescheduleData.selectedDate);
+    if (!selectedDay) return [];
+
+    const todayISO = new Date().toISOString().slice(0, 10);
+    if (selectedDay.dateISO !== todayISO) {
+      return selectedDay.slots.map((slot) => ({ ...slot, timing: 'upcoming' as const }));
+    }
+
+    const currentHour = new Date().getHours();
+    return selectedDay.slots.map((slot) => {
+      const hour = Number(slot.time.split(':')[0]);
+      if (Number.isNaN(hour)) {
+        return { ...slot, timing: 'upcoming' as const };
+      }
+      if (hour < currentHour) {
+        return { ...slot, timing: 'past' as const };
+      }
+      if (hour === currentHour) {
+        return { ...slot, timing: 'ongoing' as const };
+      }
+      return { ...slot, timing: 'upcoming' as const };
+    });
+  }, [availabilityDays, rescheduleData.selectedDate]);
+
+  useEffect(() => {
+    const fetchAvailability = async () => {
+      if (!reschedulingAppointment || !session?.token) return;
+      const appointment = appointments.find((app) => app.id === reschedulingAppointment);
+      if (!appointment) return;
+
+      try {
+        setAvailabilityError(null);
+        const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+        const tzOffsetMinutes = new Date().getTimezoneOffset();
+        const response = await fetch(
+          `${apiBaseUrl}/api/doctors/${appointment.doctorId}/availability?tzOffsetMinutes=${tzOffsetMinutes}`
+        );
+
+        const data = (await response.json()) as { availability: AvailabilityEntry[] };
+        if (!response.ok) {
+          throw new Error((data as { error?: string }).error || 'Failed to load availability');
+        }
+
+        const days = data.availability.map((entry) => {
+          const entryDate = new Date(entry.date);
+          const label = entryDate.toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'short',
+            day: 'numeric',
+          });
+          const bookedTimes = new Set(entry.bookedTimes ?? []);
+          const slots = (Array.isArray(entry.slotsJson) ? entry.slotsJson : []).map((slot) =>
+            bookedTimes.has(slot.time) ? { ...slot, available: false } : slot
+          );
+          return {
+            label,
+            dateISO: entryDate.toISOString().slice(0, 10),
+            slots,
+          };
+        });
+
+        setAvailabilityDays(days);
+        setRescheduleData((prev) => ({
+          selectedDate: days[0]?.dateISO ?? prev.selectedDate,
+          selectedTime: '',
+        }));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load availability';
+        setAvailabilityError(message);
+      }
+    };
+
+    fetchAvailability();
+  }, [appointments, reschedulingAppointment, session?.token]);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -521,46 +634,69 @@ export default function PatientAppointments() {
             {/* Date Selection */}
             <div className="mb-6">
               <h4 className="text-sm font-semibold text-slate-900 mb-3">Select Date</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {dates.map((date) => {
-                  const dayName = date.split(',')[0];
-                  const dayNum = date.split(' ')[2];
-                  return (
-                    <button
-                      key={date}
-                      onClick={() => setRescheduleData((prev) => ({ ...prev, selectedDate: date }))}
-                      className={`px-3 py-3 rounded-lg font-semibold text-sm transition-all duration-200 ${
-                        rescheduleData.selectedDate === date
-                          ? 'bg-teal-100 text-teal-600 border border-teal-200'
-                          : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      <div className="text-xs">{dayName}</div>
-                      <div>{dayNum}</div>
-                    </button>
-                  );
-                })}
-              </div>
+              {availabilityError ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {availabilityError}
+                </div>
+              ) : availabilityDays.length === 0 ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                  No availability found for rescheduling.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {availabilityDays.map((date) => {
+                    const dayName = date.label.split(',')[0];
+                    const dayNum = date.label.split(' ')[2];
+                    return (
+                      <button
+                        key={date.dateISO}
+                        onClick={() =>
+                          setRescheduleData((prev) => ({ ...prev, selectedDate: date.dateISO, selectedTime: '' }))
+                        }
+                        className={`px-3 py-3 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                          rescheduleData.selectedDate === date.dateISO
+                            ? 'bg-teal-100 text-teal-600 border border-teal-200'
+                            : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="text-xs">{dayName}</div>
+                        <div>{dayNum}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Time Selection */}
             <div className="mb-6">
               <h4 className="text-sm font-semibold text-slate-900 mb-3">Select Time</h4>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {timeSlots.map((slot) => (
+                {rescheduleSlots.map((slot) => (
                   <button
                     key={slot.time}
-                    onClick={() => slot.available && setRescheduleData((prev) => ({ ...prev, selectedTime: slot.time }))}
-                    disabled={!slot.available}
+                    onClick={() =>
+                      slot.available &&
+                      slot.timing === 'upcoming' &&
+                      setRescheduleData((prev) => ({ ...prev, selectedTime: slot.time }))
+                    }
+                    disabled={!slot.available || slot.timing !== 'upcoming'}
                     className={`px-3 py-3 rounded-lg font-semibold text-sm transition-all duration-200 ${
-                      !slot.available
+                      !slot.available || slot.timing === 'past'
                         ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : slot.timing === 'ongoing'
+                        ? 'bg-amber-50 text-amber-700 border border-amber-200 cursor-not-allowed'
                         : rescheduleData.selectedTime === slot.time
                         ? 'bg-teal-600 text-white border border-teal-600'
                         : 'bg-white text-slate-700 border border-slate-200 hover:border-teal-600'
                     }`}
                   >
                     {slot.time}
+                    {slot.timing !== 'upcoming' && (
+                      <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide">
+                        {slot.timing === 'past' ? 'Past' : 'Ongoing'}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
