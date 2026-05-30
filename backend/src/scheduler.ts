@@ -3,6 +3,17 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+/* ─── Manila (UTC+8) helper ──────────────────────────── */
+const MANILA_OFFSET = 8;
+
+function startOfTodayManila(): Date {
+  const now = new Date();
+  const ms = now.getTime() + MANILA_OFFSET * 3600000;
+  const d = new Date(ms);
+  d.setUTCHours(0, 0, 0, 0);
+  return new Date(d.getTime() - MANILA_OFFSET * 3600000);
+}
+
 function buildSlots() {
   const slots: { time: string; available: boolean }[] = [];
   for (let hour = 8; hour < 12; hour++) {
@@ -17,11 +28,7 @@ function buildSlots() {
 async function extendAvailability() {
   try {
     const doctors = await prisma.doctor.findMany({ select: { id: true } });
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const furthestDate = new Date(today);
-    furthestDate.setDate(today.getDate() + 14);
+    const today = startOfTodayManila();
 
     for (const doctor of doctors) {
       const existing = await prisma.doctorAvailability.findMany({
@@ -32,8 +39,7 @@ async function extendAvailability() {
 
       let addedCount = 0;
       for (let offset = 0; offset < 14; offset++) {
-        const date = new Date(today);
-        date.setDate(today.getDate() + offset);
+        const date = new Date(today.getTime() + offset * 24 * 60 * 60 * 1000);
         const iso = date.toISOString().slice(0, 10);
         if (!existingDates.has(iso)) {
           await prisma.doctorAvailability.create({

@@ -3,6 +3,24 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+/* ─── Manila (UTC+8) timezone helpers ────────────────── */
+const MANILA_OFFSET = 8;
+
+function todayManila(): { year: number; month: number; day: number } {
+  const d = new Date(new Date().getTime() + MANILA_OFFSET * 3600000);
+  return { year: d.getUTCFullYear(), month: d.getUTCMonth(), day: d.getUTCDate() };
+}
+
+function manilaDate(
+  year: number,
+  month: number,
+  day: number,
+  hour: number = 0,
+  minute: number = 0,
+): Date {
+  return new Date(Date.UTC(year, month, day, hour - MANILA_OFFSET, minute));
+}
+
 async function main() {
   console.log("🌱  Seeding database...");
 
@@ -334,9 +352,9 @@ async function main() {
   for (const t of consultationTemplates) {
     const patientId = seededPatientIds[t.patientIdx];
     const doctorId = seededDoctorIds[t.doctorIdx];
-    const scheduledAt = new Date(Date.now() - t.agoDays * 24 * 60 * 60 * 1000);
-    // Set to a reasonable appointment hour (10 AM)
-    scheduledAt.setUTCHours(10, 0, 0, 0);
+    const today = todayManila();
+    const slot = manilaDate(today.year, today.month, today.day, 10);
+    const scheduledAt = new Date(slot.getTime() - t.agoDays * 24 * 60 * 60 * 1000);
 
     const appointment = await prisma.appointment.create({
       data: {
@@ -380,8 +398,9 @@ async function main() {
   for (const u of upcomingAppointments) {
     const patientId = seededPatientIds[u.patientIdx];
     const doctorId = seededDoctorIds[u.doctorIdx];
-    const scheduledAt = new Date(Date.now() + u.daysAhead * 24 * 60 * 60 * 1000);
-    scheduledAt.setUTCHours(10, 0, 0, 0);
+    const today = todayManila();
+    const scheduledAt = manilaDate(today.year, today.month, today.day, 10, 0);
+    scheduledAt.setTime(scheduledAt.getTime() + u.daysAhead * 24 * 60 * 60 * 1000);
 
     await prisma.appointment.create({
       data: {
@@ -416,15 +435,14 @@ async function main() {
   }
   console.log(`  ✅  ${upcomingAppointments.length} upcoming appointments created`);
 
-  /* ─── Test session appointments (today 8pm & 9pm) ─── */
-  const todayStr = new Date().toISOString().slice(0, 10);
+  /* ─── Test session appointments (today 8pm & 9pm Manila time) ─── */
   const testTimes = ["20:00", "21:00"];
   for (const time of testTimes) {
     const patientId = seededPatientIds[0];
     const doctorId = seededDoctorIds[0];
     const [h, m] = time.split(":").map(Number);
-    const scheduledAt = new Date();
-    scheduledAt.setHours(h, m, 0, 0);
+    const today = todayManila();
+    const scheduledAt = manilaDate(today.year, today.month, today.day, h, m);
 
     await prisma.appointment.create({
       data: {
@@ -437,13 +455,10 @@ async function main() {
         roomUrl: "https://meet.jit.si/curis-telehealth",
       },
     });
-    console.log(`  ✅  Test appointment: ${todayStr} ${time} — doctor1 / patient1`);
+    console.log(`  ✅  Test appointment: ${today.year}-${String(today.month + 1).padStart(2, "0")}-${String(today.day).padStart(2, "0")} ${time} Manila — doctor1 / patient1`);
   }
 
-  /* ─── Doctor Availability (next 7 days) ──────────────── */
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
+  /* ─── Doctor Availability (next 7 days, Manila dates) ── */
   const buildSlots = () => {
     const slots: { time: string; available: boolean }[] = [];
     for (let hour = 8; hour < 12; hour++) {
@@ -455,11 +470,12 @@ async function main() {
     return slots;
   };
 
+  const todayStart = todayManila();
   const availabilityOps: ReturnType<typeof prisma.doctorAvailability.upsert>[] = [];
   for (const doctorId of seededDoctorIds) {
     for (let offset = 0; offset < 7; offset++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + offset);
+      const date = manilaDate(todayStart.year, todayStart.month, todayStart.day, 0, 0);
+      date.setTime(date.getTime() + offset * 24 * 60 * 60 * 1000);
       availabilityOps.push(
         prisma.doctorAvailability.upsert({
           where: { doctorId_date: { doctorId, date } },
@@ -470,7 +486,7 @@ async function main() {
     }
   }
   await Promise.all(availabilityOps);
-  console.log("  ✅  Doctor availability seeded for 7 days");
+  console.log("  ✅  Doctor availability seeded for 7 days (Manila timezone)");
 
   console.log("🎉  Seeding complete!");
 }
