@@ -310,19 +310,22 @@ appointmentsRouter.post(
         return res.status(404).json({ error: "Doctor profile not found." });
       }
 
-      const appointment = await prisma.appointment.findUnique({
+      const appointmentWithPatient = await prisma.appointment.findUnique({
         where: { id: appointmentId },
         select: {
           id: true,
           doctorId: true,
           scheduledAt: true,
           status: true,
+          patient: { select: { userId: true } },
         },
       });
 
-      if (!appointment || appointment.doctorId !== doctor.id) {
+      if (!appointmentWithPatient || appointmentWithPatient.doctorId !== doctor.id) {
         return res.status(404).json({ error: "Appointment not found." });
       }
+
+      const appointment = appointmentWithPatient;
 
       if (appointment.status === "COMPLETED") {
         return res.status(400).json({ error: "Completed appointments cannot be cancelled." });
@@ -376,6 +379,16 @@ appointmentsRouter.post(
           },
           data: { slotsJson: nextSlots },
         });
+      });
+
+      await prisma.notification.create({
+        data: {
+          userId: appointment.patient.userId,
+          type: "cancelled",
+          title: "Appointment Cancelled by Doctor",
+          message: `Your appointment scheduled on ${appointment.scheduledAt.toISOString().split("T")[0]} has been cancelled.`,
+          link: "/patient/appointments",
+        },
       });
 
       return res.json({ success: true });

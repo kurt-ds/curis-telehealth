@@ -857,19 +857,22 @@ profileRouter.patch(
         return res.status(404).json({ error: "Doctor profile not found." });
       }
 
-      const appointment = await prisma.appointment.findUnique({
+      const appointmentWithPatient = await prisma.appointment.findUnique({
         where: { id: req.params.id },
         select: {
           id: true,
           doctorId: true,
           scheduledAt: true,
           status: true,
+          patient: { select: { userId: true } },
         },
       });
 
-      if (!appointment || appointment.doctorId !== doctor.id) {
+      if (!appointmentWithPatient || appointmentWithPatient.doctorId !== doctor.id) {
         return res.status(404).json({ error: "Appointment not found." });
       }
+
+      const appointment = appointmentWithPatient;
 
       if (appointment.status !== "UPCOMING") {
         return res.status(400).json({ error: "Only upcoming appointments can be completed." });
@@ -936,6 +939,16 @@ profileRouter.patch(
             },
           });
         }
+      });
+
+      await prisma.notification.create({
+        data: {
+          userId: appointment.patient.userId,
+          type: "completed",
+          title: "Consultation Completed",
+          message: `Your consultation has been completed. You can view the details in your records.`,
+          link: "/patient/appointments",
+        },
       });
 
       return res.json({ success: true });
