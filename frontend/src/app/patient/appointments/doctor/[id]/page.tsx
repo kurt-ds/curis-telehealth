@@ -278,13 +278,6 @@ export default function DoctorAppointmentPage() {
                   <h2 className="text-2xl font-black text-slate-900 mb-1">{doctor.title}</h2>
                   <p className="text-sm font-semibold text-teal-600 mb-3">{doctor.specialty}</p>
 
-                  <div className="mb-4">
-                    <p className="text-xs font-semibold text-slate-600 uppercase mb-1">Education</p>
-                    <p className="text-sm text-slate-700">
-                      {doctor.education || 'Not provided'}
-                    </p>
-                  </div>
-
                   <div>
                     <p className="text-xs font-semibold text-slate-600 uppercase mb-1">Bio</p>
                     <p className="text-sm text-slate-700 leading-relaxed">

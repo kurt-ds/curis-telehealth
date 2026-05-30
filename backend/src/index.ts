@@ -8,6 +8,7 @@ import { doctorsRouter } from "./routes/doctors";
 import { appointmentsRouter } from "./routes/appointments";
 import { profileRouter } from "./routes/profile";
 import { notificationsRouter } from "./routes/notifications";
+import { aiRouter } from "./routes/ai";
 
 const app = express();
 const PORT = process.env.PORT ?? 8080;
@@ -33,6 +34,7 @@ app.use("/api/doctors", doctorsRouter);
 app.use("/api/appointments", appointmentsRouter);
 app.use("/api", profileRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/ai", aiRouter);
 
 // ── 404 catch-all ─────────────────────────────────────────────────
 app.use((_req, res) => {
